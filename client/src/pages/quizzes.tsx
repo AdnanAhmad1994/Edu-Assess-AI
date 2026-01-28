@@ -20,7 +20,21 @@ import {
   Eye,
   Shield,
   Brain,
+  Link,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +49,10 @@ export default function QuizzesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("all");
+  const [publicLinkDialogOpen, setPublicLinkDialogOpen] = useState(false);
+  const [selectedQuizForLink, setSelectedQuizForLink] = useState<Quiz | null>(null);
+  const [publicLinkPermission, setPublicLinkPermission] = useState<"view" | "attempt">("attempt");
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
 
   const { data: quizzes, isLoading } = useQuery<Quiz[]>({
     queryKey: ["/api/quizzes"],
@@ -49,6 +67,48 @@ export default function QuizzesPage() {
       toast({ title: "Quiz published", description: "Students can now take this quiz." });
     },
   });
+
+  const generatePublicLinkMutation = useMutation({
+    mutationFn: async ({ quizId, permission }: { quizId: string; permission: "view" | "attempt" }) => {
+      const res = await apiRequest("POST", `/api/quizzes/${quizId}/generate-public-link`, {
+        permission,
+        requiredFields: ["name", "email"],
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      const publicUrl = `${window.location.origin}/public/quiz/${data.quiz.publicAccessToken}`;
+      setGeneratedLink(publicUrl);
+      queryClient.invalidateQueries({ queryKey: ["/api/quizzes"] });
+      toast({ title: "Public link generated!", description: "Share this link with anyone." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to generate public link", variant: "destructive" });
+    },
+  });
+
+  const handleOpenPublicLinkDialog = (quiz: Quiz) => {
+    setSelectedQuizForLink(quiz);
+    setGeneratedLink(quiz.publicLinkEnabled ? `${window.location.origin}/public/quiz/${quiz.publicAccessToken}` : null);
+    setPublicLinkPermission(quiz.publicLinkPermission || "attempt");
+    setPublicLinkDialogOpen(true);
+  };
+
+  const handleGenerateLink = () => {
+    if (selectedQuizForLink) {
+      generatePublicLinkMutation.mutate({
+        quizId: selectedQuizForLink.id,
+        permission: publicLinkPermission,
+      });
+    }
+  };
+
+  const handleCopyLink = () => {
+    if (generatedLink) {
+      navigator.clipboard.writeText(generatedLink);
+      toast({ title: "Copied!", description: "Link copied to clipboard" });
+    }
+  };
 
   const isInstructor = user?.role === "instructor" || user?.role === "admin";
 
@@ -173,6 +233,10 @@ export default function QuizzesPage() {
                               Publish Quiz
                             </DropdownMenuItem>
                           )}
+                          <DropdownMenuItem onClick={() => handleOpenPublicLinkDialog(quiz)}>
+                            <Link className="w-4 h-4 mr-2" />
+                            {quiz.publicLinkEnabled ? "Manage Public Link" : "Generate Public Link"}
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setLocation(`/quizzes/${quiz.id}/submissions`)}>
                             View Submissions
                           </DropdownMenuItem>
@@ -236,6 +300,70 @@ export default function QuizzesPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <Dialog open={publicLinkDialogOpen} onOpenChange={setPublicLinkDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              <div className="flex items-center gap-2">
+                <Link className="w-5 h-5" />
+                Public Quiz Link
+              </div>
+            </DialogTitle>
+            <DialogDescription>
+              Generate a shareable link for "{selectedQuizForLink?.title}". Anyone with this link can access the quiz.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Permission Level</Label>
+              <Select value={publicLinkPermission} onValueChange={(value: "view" | "attempt") => setPublicLinkPermission(value)}>
+                <SelectTrigger data-testid="select-permission">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="view">View Only - Users can see questions and answers</SelectItem>
+                  <SelectItem value="attempt">Attempt - Users can take the quiz and submit answers</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {generatedLink && (
+              <div className="space-y-2">
+                <Label>Public Link</Label>
+                <div className="flex gap-2">
+                  <Input value={generatedLink} readOnly className="text-sm" data-testid="input-public-link" />
+                  <Button variant="outline" size="icon" onClick={handleCopyLink} data-testid="button-copy-link">
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                  <a href={generatedLink} target="_blank" rel="noopener noreferrer">
+                    <Button variant="outline" size="icon" data-testid="button-open-link">
+                      <ExternalLink className="w-4 h-4" />
+                    </Button>
+                  </a>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Share this link with students. They'll need to provide their name and email to access.
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setPublicLinkDialogOpen(false)}>
+              Close
+            </Button>
+            <Button 
+              onClick={handleGenerateLink} 
+              disabled={generatePublicLinkMutation.isPending}
+              data-testid="button-generate-link"
+            >
+              {generatePublicLinkMutation.isPending ? "Generating..." : generatedLink ? "Regenerate Link" : "Generate Link"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

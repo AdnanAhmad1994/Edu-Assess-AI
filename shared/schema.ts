@@ -10,6 +10,8 @@ export const questionTypeEnum = pgEnum("question_type", ["mcq", "true_false", "s
 export const assessmentStatusEnum = pgEnum("assessment_status", ["draft", "published", "closed"]);
 export const submissionStatusEnum = pgEnum("submission_status", ["in_progress", "submitted", "graded"]);
 export const violationTypeEnum = pgEnum("violation_type", ["tab_switch", "copy_paste", "multiple_faces", "no_face", "phone_detected", "unauthorized_person", "looking_away", "suspicious_behavior"]);
+export const publicLinkPermissionEnum = pgEnum("public_link_permission", ["view", "attempt"]);
+export const chatCommandStatusEnum = pgEnum("chat_command_status", ["pending", "executing", "completed", "failed"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -81,6 +83,10 @@ export const quizzes = pgTable("quizzes", {
   status: assessmentStatusEnum("status").notNull().default("draft"),
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
+  publicAccessToken: varchar("public_access_token"),
+  publicLinkPermission: publicLinkPermissionEnum("public_link_permission"),
+  publicLinkEnabled: boolean("public_link_enabled").default(false),
+  requiredIdentificationFields: jsonb("required_identification_fields").$type<string[]>(),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -162,6 +168,35 @@ export const proctoringViolations = pgTable("proctoring_violations", {
   reviewed: boolean("reviewed").default(false),
 });
 
+// Public Quiz Submissions (for anonymous/guest users via public link)
+export const publicQuizSubmissions = pgTable("public_quiz_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  quizId: varchar("quiz_id").notNull().references(() => quizzes.id, { onDelete: "cascade" }),
+  identificationData: jsonb("identification_data").$type<Record<string, string>>(),
+  answers: jsonb("answers").$type<{ questionId: string; answer: string; isCorrect?: boolean; points?: number }[]>(),
+  score: integer("score"),
+  totalPoints: integer("total_points"),
+  percentage: integer("percentage"),
+  status: submissionStatusEnum("status").notNull().default("in_progress"),
+  startedAt: timestamp("started_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  submittedAt: timestamp("submitted_at"),
+  ipAddress: text("ip_address"),
+});
+
+// Chat Commands (for agentic chatbot)
+export const chatCommands = pgTable("chat_commands", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  conversationId: integer("conversation_id"),
+  command: text("command").notNull(),
+  intent: text("intent"),
+  parameters: jsonb("parameters").$type<Record<string, any>>(),
+  status: chatCommandStatusEnum("status").notNull().default("pending"),
+  result: jsonb("result").$type<{ success: boolean; message: string; data?: any }>(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   courses: many(courses),
@@ -240,6 +275,8 @@ export const insertEnrollmentSchema = createInsertSchema(enrollments).omit({ id:
 export const insertQuizSubmissionSchema = createInsertSchema(quizSubmissions).omit({ id: true, startedAt: true });
 export const insertAssignmentSubmissionSchema = createInsertSchema(assignmentSubmissions).omit({ id: true });
 export const insertProctoringViolationSchema = createInsertSchema(proctoringViolations).omit({ id: true, timestamp: true });
+export const insertPublicQuizSubmissionSchema = createInsertSchema(publicQuizSubmissions).omit({ id: true, startedAt: true });
+export const insertChatCommandSchema = createInsertSchema(chatCommands).omit({ id: true, createdAt: true });
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -264,6 +301,10 @@ export type AssignmentSubmission = typeof assignmentSubmissions.$inferSelect;
 export type InsertAssignmentSubmission = z.infer<typeof insertAssignmentSubmissionSchema>;
 export type ProctoringViolation = typeof proctoringViolations.$inferSelect;
 export type InsertProctoringViolation = z.infer<typeof insertProctoringViolationSchema>;
+export type PublicQuizSubmission = typeof publicQuizSubmissions.$inferSelect;
+export type InsertPublicQuizSubmission = z.infer<typeof insertPublicQuizSubmissionSchema>;
+export type ChatCommand = typeof chatCommands.$inferSelect;
+export type InsertChatCommand = z.infer<typeof insertChatCommandSchema>;
 
 // Extended types for frontend
 export type QuestionType = "mcq" | "true_false" | "short_answer" | "essay" | "fill_blank" | "matching";
@@ -271,3 +312,5 @@ export type UserRole = "admin" | "instructor" | "student";
 export type AssessmentStatus = "draft" | "published" | "closed";
 export type SubmissionStatus = "in_progress" | "submitted" | "graded";
 export type ViolationType = "tab_switch" | "copy_paste" | "multiple_faces" | "no_face" | "phone_detected" | "unauthorized_person" | "looking_away" | "suspicious_behavior";
+export type PublicLinkPermission = "view" | "attempt";
+export type ChatCommandStatus = "pending" | "executing" | "completed" | "failed";

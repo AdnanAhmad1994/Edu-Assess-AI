@@ -643,5 +643,313 @@ Return ONLY a JSON array of violations found (empty array if none):
     }
   });
 
+  // Public Quiz Link Generation
+  app.post("/api/quizzes/:id/generate-public-link", requireInstructor, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { permission, requiredFields } = req.body;
+      
+      const quiz = await storage.getQuiz(id);
+      if (!quiz) {
+        return res.status(404).json({ error: "Quiz not found" });
+      }
+      
+      const updated = await storage.generateQuizPublicLink(
+        id, 
+        permission || "view", 
+        requiredFields || ["name", "email"]
+      );
+      
+      if (updated) {
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const publicUrl = `${baseUrl}/public/quiz/${updated.publicAccessToken}`;
+        res.json({ quiz: updated, publicUrl });
+      } else {
+        res.status(500).json({ error: "Failed to generate public link" });
+      }
+    } catch (error) {
+      console.error("Generate public link error:", error);
+      res.status(500).json({ error: "Failed to generate public link" });
+    }
+  });
+
+  // Disable public link
+  app.post("/api/quizzes/:id/disable-public-link", requireInstructor, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updated = await storage.updateQuiz(id, { 
+        publicLinkEnabled: false,
+        publicAccessToken: null 
+      });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to disable public link" });
+    }
+  });
+
+  // Public Quiz Access (no auth required)
+  app.get("/api/public/quiz/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const quiz = await storage.getQuizByPublicToken(token);
+      
+      if (!quiz) {
+        return res.status(404).json({ error: "Quiz not found or link expired" });
+      }
+      
+      const quizQuestions = await storage.getQuizQuestions(quiz.id);
+      
+      // Don't include correct answers for attempt mode
+      const sanitizedQuestions = quiz.publicLinkPermission === "view" 
+        ? quizQuestions 
+        : quizQuestions.map(qq => ({
+            ...qq,
+            question: {
+              ...qq.question,
+              correctAnswer: undefined,
+              explanation: undefined,
+            }
+          }));
+      
+      res.json({
+        quiz: {
+          ...quiz,
+          publicAccessToken: undefined, // Don't expose token
+        },
+        questions: sanitizedQuestions,
+        requiredFields: quiz.requiredIdentificationFields || ["name", "email"],
+        canAttempt: quiz.publicLinkPermission === "attempt",
+      });
+    } catch (error) {
+      console.error("Public quiz access error:", error);
+      res.status(500).json({ error: "Failed to access quiz" });
+    }
+  });
+
+  // Submit public quiz
+  app.post("/api/public/quiz/:token/submit", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { identificationData, answers } = req.body;
+      
+      const quiz = await storage.getQuizByPublicToken(token);
+      if (!quiz || quiz.publicLinkPermission !== "attempt") {
+        return res.status(403).json({ error: "Quiz submission not allowed" });
+      }
+      
+      // Calculate score
+      const quizQuestions = await storage.getQuizQuestions(quiz.id);
+      let score = 0;
+      let totalPoints = 0;
+      
+      const gradedAnswers = answers.map((ans: { questionId: string; answer: string }) => {
+        const qq = quizQuestions.find(q => q.questionId === ans.questionId);
+        if (qq) {
+          totalPoints += qq.question.points;
+          const isCorrect = qq.question.correctAnswer === ans.answer;
+          if (isCorrect) score += qq.question.points;
+          return { ...ans, isCorrect, points: isCorrect ? qq.question.points : 0 };
+        }
+        return ans;
+      });
+      
+      const percentage = totalPoints > 0 ? Math.round((score / totalPoints) * 100) : 0;
+      
+      const submission = await storage.createPublicQuizSubmission({
+        quizId: quiz.id,
+        identificationData,
+        answers: gradedAnswers,
+        score,
+        totalPoints,
+        percentage,
+        status: "submitted",
+        submittedAt: new Date(),
+        ipAddress: req.ip,
+      });
+      
+      res.json({
+        submission,
+        score,
+        totalPoints,
+        percentage,
+        passed: percentage >= (quiz.passingScore || 60),
+      });
+    } catch (error) {
+      console.error("Public quiz submit error:", error);
+      res.status(500).json({ error: "Failed to submit quiz" });
+    }
+  });
+
+  // Get public submissions for a quiz (instructor only)
+  app.get("/api/quizzes/:id/public-submissions", requireInstructor, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const submissions = await storage.getPublicQuizSubmissions(id);
+      res.json(submissions);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch public submissions" });
+    }
+  });
+
+  // Agentic Chatbot Endpoints
+  app.post("/api/chat/command", requireAuth, async (req, res) => {
+    try {
+      const { command } = req.body;
+      const userId = req.session.userId!;
+      
+      // Create command record
+      const chatCommand = await storage.createChatCommand({
+        userId,
+        command,
+        status: "executing",
+      });
+      
+      // Parse intent using Gemini
+      const intentPrompt = `You are an AI assistant for an educational assessment platform called EduAssess AI.
+      
+Analyze this user command and extract the intent and parameters. Return a JSON object with:
+- intent: one of "create_quiz", "create_course", "generate_public_link", "view_analytics", "list_quizzes", "list_courses", "upload_content", "unknown"
+- parameters: relevant extracted parameters like title, courseId, permission level, etc.
+- message: a brief confirmation message of what you'll do
+
+User command: "${command}"
+
+Return only valid JSON, no markdown.`;
+
+      const model = ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: intentPrompt,
+      });
+      
+      const response = await model;
+      const responseText = response.text || "";
+      
+      let parsed;
+      try {
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
+      } catch {
+        parsed = { intent: "unknown", parameters: {}, message: "I couldn't understand that command. Try asking me to create a quiz or generate a public link." };
+      }
+      
+      // Execute the command based on intent
+      let result: { success: boolean; message: string; data?: any } = { 
+        success: false, 
+        message: "Unknown command" 
+      };
+      
+      if (parsed.intent === "create_quiz") {
+        const courses = await storage.getCourses(userId);
+        if (courses.length > 0) {
+          const quiz = await storage.createQuiz({
+            courseId: courses[0].id,
+            title: parsed.parameters.title || "AI Generated Quiz",
+            description: parsed.parameters.description || "Created via AI assistant",
+            status: "draft",
+          });
+          result = { 
+            success: true, 
+            message: `Created quiz "${quiz.title}" in course "${courses[0].name}"`,
+            data: { quiz }
+          };
+        } else {
+          result = { success: false, message: "No courses found. Please create a course first." };
+        }
+      } else if (parsed.intent === "create_course") {
+        const course = await storage.createCourse({
+          name: parsed.parameters.name || "New Course",
+          code: parsed.parameters.code || "COURSE101",
+          semester: parsed.parameters.semester || "Spring 2026",
+          instructorId: userId,
+        });
+        result = { 
+          success: true, 
+          message: `Created course "${course.name}" (${course.code})`,
+          data: { course }
+        };
+      } else if (parsed.intent === "generate_public_link") {
+        const quizzes = await storage.getQuizzes();
+        const targetQuiz = quizzes.find(q => 
+          q.title.toLowerCase().includes((parsed.parameters.quizName || "").toLowerCase())
+        ) || quizzes[0];
+        
+        if (targetQuiz) {
+          const permission = parsed.parameters.permission === "view" ? "view" : "attempt";
+          const updated = await storage.generateQuizPublicLink(
+            targetQuiz.id,
+            permission,
+            ["name", "email"]
+          );
+          if (updated) {
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+            const publicUrl = `${baseUrl}/public/quiz/${updated.publicAccessToken}`;
+            result = { 
+              success: true, 
+              message: `Generated ${permission}-only public link for "${targetQuiz.title}"`,
+              data: { publicUrl, quiz: updated }
+            };
+          }
+        } else {
+          result = { success: false, message: "No quizzes found to generate a link for." };
+        }
+      } else if (parsed.intent === "list_quizzes") {
+        const quizzes = await storage.getQuizzes();
+        result = { 
+          success: true, 
+          message: `Found ${quizzes.length} quizzes`,
+          data: { quizzes: quizzes.slice(0, 10) }
+        };
+      } else if (parsed.intent === "list_courses") {
+        const courses = await storage.getCourses(userId);
+        result = { 
+          success: true, 
+          message: `Found ${courses.length} courses`,
+          data: { courses }
+        };
+      } else if (parsed.intent === "view_analytics") {
+        const stats = await storage.getDashboardStats(userId);
+        result = { 
+          success: true, 
+          message: "Here are your analytics",
+          data: { stats }
+        };
+      } else {
+        result = { 
+          success: true, 
+          message: parsed.message || "I understood your request. How can I help you with EduAssess AI?",
+          data: { parsed }
+        };
+      }
+      
+      // Update command with result
+      await storage.updateChatCommand(chatCommand.id, {
+        intent: parsed.intent,
+        parameters: parsed.parameters,
+        status: result.success ? "completed" : "failed",
+        result,
+        completedAt: new Date(),
+      });
+      
+      res.json({
+        command: chatCommand,
+        result,
+        aiResponse: parsed.message,
+      });
+    } catch (error) {
+      console.error("Chat command error:", error);
+      res.status(500).json({ error: "Failed to process command" });
+    }
+  });
+
+  // Get chat history
+  app.get("/api/chat/history", requireAuth, async (req, res) => {
+    try {
+      const commands = await storage.getChatCommands(req.session.userId!);
+      res.json(commands);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch chat history" });
+    }
+  });
+
   return httpServer;
 }

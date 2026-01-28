@@ -10,6 +10,8 @@ import {
   type QuizSubmission, type InsertQuizSubmission,
   type AssignmentSubmission, type InsertAssignmentSubmission,
   type ProctoringViolation, type InsertProctoringViolation,
+  type PublicQuizSubmission, type InsertPublicQuizSubmission,
+  type ChatCommand, type InsertChatCommand,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -82,6 +84,22 @@ export interface IStorage {
   getProctoringViolations(submissionId: string): Promise<ProctoringViolation[]>;
   createProctoringViolation(violation: InsertProctoringViolation): Promise<ProctoringViolation>;
   
+  // Public Quiz Submissions
+  getPublicQuizSubmissions(quizId: string): Promise<PublicQuizSubmission[]>;
+  getPublicQuizSubmission(id: string): Promise<PublicQuizSubmission | undefined>;
+  createPublicQuizSubmission(submission: InsertPublicQuizSubmission): Promise<PublicQuizSubmission>;
+  updatePublicQuizSubmission(id: string, submission: Partial<PublicQuizSubmission>): Promise<PublicQuizSubmission | undefined>;
+  
+  // Quiz Public Link
+  getQuizByPublicToken(token: string): Promise<Quiz | undefined>;
+  generateQuizPublicLink(quizId: string, permission: "view" | "attempt", requiredFields: string[]): Promise<Quiz | undefined>;
+  
+  // Chat Commands
+  getChatCommands(userId: string): Promise<ChatCommand[]>;
+  getChatCommand(id: string): Promise<ChatCommand | undefined>;
+  createChatCommand(command: InsertChatCommand): Promise<ChatCommand>;
+  updateChatCommand(id: string, command: Partial<ChatCommand>): Promise<ChatCommand | undefined>;
+  
   // Stats
   getDashboardStats(instructorId: string): Promise<{
     totalCourses: number;
@@ -105,6 +123,8 @@ export class MemStorage implements IStorage {
   private quizSubmissions: Map<string, QuizSubmission> = new Map();
   private assignmentSubmissions: Map<string, AssignmentSubmission> = new Map();
   private proctoringViolations: Map<string, ProctoringViolation> = new Map();
+  private publicQuizSubmissions: Map<string, PublicQuizSubmission> = new Map();
+  private chatCommands: Map<string, ChatCommand> = new Map();
 
   // Users
   async getUser(id: string): Promise<User | undefined> {
@@ -124,6 +144,7 @@ export class MemStorage implements IStorage {
     const user: User = {
       ...insertUser,
       id,
+      role: insertUser.role ?? "student",
       avatarUrl: insertUser.avatarUrl ?? null,
       createdAt: new Date(),
     };
@@ -294,6 +315,10 @@ export class MemStorage implements IStorage {
       status: insertQuiz.status ?? "draft",
       startDate: insertQuiz.startDate ?? null,
       endDate: insertQuiz.endDate ?? null,
+      publicAccessToken: insertQuiz.publicAccessToken ?? null,
+      publicLinkPermission: insertQuiz.publicLinkPermission ?? null,
+      publicLinkEnabled: insertQuiz.publicLinkEnabled ?? false,
+      requiredIdentificationFields: insertQuiz.requiredIdentificationFields ?? null,
       createdAt: new Date(),
     };
     this.quizzes.set(id, quiz);
@@ -570,6 +595,101 @@ export class MemStorage implements IStorage {
       pendingGrading,
       recentSubmissions,
     };
+  }
+  
+  // Public Quiz Submissions
+  async getPublicQuizSubmissions(quizId: string): Promise<PublicQuizSubmission[]> {
+    return Array.from(this.publicQuizSubmissions.values())
+      .filter(s => s.quizId === quizId);
+  }
+  
+  async getPublicQuizSubmission(id: string): Promise<PublicQuizSubmission | undefined> {
+    return this.publicQuizSubmissions.get(id);
+  }
+  
+  async createPublicQuizSubmission(insertSubmission: InsertPublicQuizSubmission): Promise<PublicQuizSubmission> {
+    const id = randomUUID();
+    const submission: PublicQuizSubmission = {
+      ...insertSubmission,
+      id,
+      identificationData: insertSubmission.identificationData ?? null,
+      answers: insertSubmission.answers ?? null,
+      score: insertSubmission.score ?? null,
+      totalPoints: insertSubmission.totalPoints ?? null,
+      percentage: insertSubmission.percentage ?? null,
+      status: insertSubmission.status ?? "in_progress",
+      submittedAt: insertSubmission.submittedAt ?? null,
+      ipAddress: insertSubmission.ipAddress ?? null,
+      startedAt: new Date(),
+    };
+    this.publicQuizSubmissions.set(id, submission);
+    return submission;
+  }
+  
+  async updatePublicQuizSubmission(id: string, data: Partial<PublicQuizSubmission>): Promise<PublicQuizSubmission | undefined> {
+    const submission = this.publicQuizSubmissions.get(id);
+    if (!submission) return undefined;
+    const updated = { ...submission, ...data };
+    this.publicQuizSubmissions.set(id, updated);
+    return updated;
+  }
+  
+  // Quiz Public Link
+  async getQuizByPublicToken(token: string): Promise<Quiz | undefined> {
+    return Array.from(this.quizzes.values())
+      .find(q => q.publicAccessToken === token && q.publicLinkEnabled);
+  }
+  
+  async generateQuizPublicLink(quizId: string, permission: "view" | "attempt", requiredFields: string[]): Promise<Quiz | undefined> {
+    const quiz = this.quizzes.get(quizId);
+    if (!quiz) return undefined;
+    
+    const token = randomUUID().replace(/-/g, '').substring(0, 16);
+    const updated: Quiz = {
+      ...quiz,
+      publicAccessToken: token,
+      publicLinkPermission: permission,
+      publicLinkEnabled: true,
+      requiredIdentificationFields: requiredFields,
+    };
+    this.quizzes.set(quizId, updated);
+    return updated;
+  }
+  
+  // Chat Commands
+  async getChatCommands(userId: string): Promise<ChatCommand[]> {
+    return Array.from(this.chatCommands.values())
+      .filter(c => c.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+  
+  async getChatCommand(id: string): Promise<ChatCommand | undefined> {
+    return this.chatCommands.get(id);
+  }
+  
+  async createChatCommand(insertCommand: InsertChatCommand): Promise<ChatCommand> {
+    const id = randomUUID();
+    const command: ChatCommand = {
+      ...insertCommand,
+      id,
+      conversationId: insertCommand.conversationId ?? null,
+      intent: insertCommand.intent ?? null,
+      parameters: insertCommand.parameters ?? null,
+      status: insertCommand.status ?? "pending",
+      result: insertCommand.result ?? null,
+      completedAt: insertCommand.completedAt ?? null,
+      createdAt: new Date(),
+    };
+    this.chatCommands.set(id, command);
+    return command;
+  }
+  
+  async updateChatCommand(id: string, data: Partial<ChatCommand>): Promise<ChatCommand | undefined> {
+    const command = this.chatCommands.get(id);
+    if (!command) return undefined;
+    const updated = { ...command, ...data };
+    this.chatCommands.set(id, updated);
+    return updated;
   }
 }
 

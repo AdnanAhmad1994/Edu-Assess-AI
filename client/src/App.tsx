@@ -21,6 +21,8 @@ import QuizTakePage from "@/pages/quiz-take";
 import AssignmentsPage from "@/pages/assignments";
 import AnalyticsPage from "@/pages/analytics";
 import LecturesPage from "@/pages/lectures";
+import PublicQuizPage from "@/pages/public-quiz";
+import Chatbot from "@/components/Chatbot";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { user, isLoading } = useAuth();
@@ -125,6 +127,9 @@ function Router() {
       <Route path="/quiz/:id/take">
         <ProtectedRoute component={QuizTakePage} />
       </Route>
+      <Route path="/public/quiz/:token">
+        <PublicQuizPage />
+      </Route>
       <Route path="/assignments">
         <AuthenticatedLayout>
           <ProtectedRoute component={AssignmentsPage} />
@@ -146,6 +151,12 @@ function Router() {
   );
 }
 
+function ChatbotWrapper() {
+  const { user } = useAuth();
+  if (!user || user.role === "student") return null;
+  return <Chatbot />;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -154,6 +165,7 @@ function App() {
           <TooltipProvider>
             <Toaster />
             <Router />
+            <ChatbotWrapper />
           </TooltipProvider>
         </AuthProvider>
       </ThemeProvider>
