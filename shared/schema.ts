@@ -1,18 +1,273 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, boolean, jsonb, pgEnum } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Enums
+export const userRoleEnum = pgEnum("user_role", ["admin", "instructor", "student"]);
+export const questionTypeEnum = pgEnum("question_type", ["mcq", "true_false", "short_answer", "essay", "fill_blank", "matching"]);
+export const assessmentStatusEnum = pgEnum("assessment_status", ["draft", "published", "closed"]);
+export const submissionStatusEnum = pgEnum("submission_status", ["in_progress", "submitted", "graded"]);
+export const violationTypeEnum = pgEnum("violation_type", ["tab_switch", "copy_paste", "multiple_faces", "no_face", "phone_detected", "unauthorized_person", "looking_away", "suspicious_behavior"]);
+
+// Users table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  email: text("email").notNull().unique(),
+  name: text("name").notNull(),
+  role: userRoleEnum("role").notNull().default("student"),
+  avatarUrl: text("avatar_url"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+// Courses table
+export const courses = pgTable("courses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  code: text("code").notNull(),
+  description: text("description"),
+  semester: text("semester").notNull(),
+  instructorId: varchar("instructor_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
+// Lectures table
+export const lectures = pgTable("lectures", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  courseId: varchar("course_id").notNull().references(() => courses.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  unit: text("unit"),
+  fileUrl: text("file_url"),
+  fileType: text("file_type"),
+  summary: text("summary"),
+  keyPoints: jsonb("key_points").$type<string[]>(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Question Bank table
+export const questions = pgTable("questions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  courseId: varchar("course_id").references(() => courses.id, { onDelete: "cascade" }),
+  lectureId: varchar("lecture_id").references(() => lectures.id, { onDelete: "set null" }),
+  type: questionTypeEnum("type").notNull(),
+  difficulty: text("difficulty").notNull().default("medium"),
+  text: text("text").notNull(),
+  options: jsonb("options").$type<string[]>(),
+  correctAnswer: text("correct_answer").notNull(),
+  explanation: text("explanation"),
+  points: integer("points").notNull().default(1),
+  tags: jsonb("tags").$type<string[]>(),
+  aiGenerated: boolean("ai_generated").default(false),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Quizzes table
+export const quizzes = pgTable("quizzes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  courseId: varchar("course_id").notNull().references(() => courses.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  instructions: text("instructions"),
+  timeLimitMinutes: integer("time_limit_minutes"),
+  passingScore: integer("passing_score").default(60),
+  randomizeQuestions: boolean("randomize_questions").default(true),
+  randomizeOptions: boolean("randomize_options").default(true),
+  showResults: boolean("show_results").default(true),
+  proctored: boolean("proctored").default(false),
+  status: assessmentStatusEnum("status").notNull().default("draft"),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Quiz Questions junction table
+export const quizQuestions = pgTable("quiz_questions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  quizId: varchar("quiz_id").notNull().references(() => quizzes.id, { onDelete: "cascade" }),
+  questionId: varchar("question_id").notNull().references(() => questions.id, { onDelete: "cascade" }),
+  orderIndex: integer("order_index").notNull(),
+});
+
+// Assignments table
+export const assignments = pgTable("assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  courseId: varchar("course_id").notNull().references(() => courses.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  instructions: text("instructions"),
+  rubric: jsonb("rubric").$type<{ criterion: string; maxPoints: number; description: string }[]>(),
+  maxScore: integer("max_score").notNull().default(100),
+  allowLateSubmission: boolean("allow_late_submission").default(false),
+  latePenaltyPercent: integer("late_penalty_percent").default(10),
+  status: assessmentStatusEnum("status").notNull().default("draft"),
+  dueDate: timestamp("due_date"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Course Enrollments
+export const enrollments = pgTable("enrollments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  courseId: varchar("course_id").notNull().references(() => courses.id, { onDelete: "cascade" }),
+  studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  enrolledAt: timestamp("enrolled_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Quiz Submissions
+export const quizSubmissions = pgTable("quiz_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  quizId: varchar("quiz_id").notNull().references(() => quizzes.id, { onDelete: "cascade" }),
+  studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  answers: jsonb("answers").$type<{ questionId: string; answer: string; isCorrect?: boolean; points?: number }[]>(),
+  score: integer("score"),
+  totalPoints: integer("total_points"),
+  percentage: integer("percentage"),
+  status: submissionStatusEnum("status").notNull().default("in_progress"),
+  startedAt: timestamp("started_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  submittedAt: timestamp("submitted_at"),
+  gradedAt: timestamp("graded_at"),
+  aiFeedback: text("ai_feedback"),
+});
+
+// Assignment Submissions
+export const assignmentSubmissions = pgTable("assignment_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  assignmentId: varchar("assignment_id").notNull().references(() => assignments.id, { onDelete: "cascade" }),
+  studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  content: text("content"),
+  fileUrl: text("file_url"),
+  score: integer("score"),
+  status: submissionStatusEnum("status").notNull().default("in_progress"),
+  plagiarismScore: integer("plagiarism_score"),
+  aiContentScore: integer("ai_content_score"),
+  rubricScores: jsonb("rubric_scores").$type<{ criterion: string; score: number; feedback: string }[]>(),
+  instructorFeedback: text("instructor_feedback"),
+  aiFeedback: text("ai_feedback"),
+  submittedAt: timestamp("submitted_at"),
+  gradedAt: timestamp("graded_at"),
+});
+
+// Proctoring Violations
+export const proctoringViolations = pgTable("proctoring_violations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  submissionId: varchar("submission_id").notNull().references(() => quizSubmissions.id, { onDelete: "cascade" }),
+  type: violationTypeEnum("type").notNull(),
+  description: text("description"),
+  severity: text("severity").notNull().default("medium"),
+  screenshotUrl: text("screenshot_url"),
+  timestamp: timestamp("timestamp").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  reviewed: boolean("reviewed").default(false),
+});
+
+// Relations
+export const usersRelations = relations(users, ({ many }) => ({
+  courses: many(courses),
+  enrollments: many(enrollments),
+  quizSubmissions: many(quizSubmissions),
+  assignmentSubmissions: many(assignmentSubmissions),
+}));
+
+export const coursesRelations = relations(courses, ({ one, many }) => ({
+  instructor: one(users, { fields: [courses.instructorId], references: [users.id] }),
+  lectures: many(lectures),
+  quizzes: many(quizzes),
+  assignments: many(assignments),
+  enrollments: many(enrollments),
+  questions: many(questions),
+}));
+
+export const lecturesRelations = relations(lectures, ({ one, many }) => ({
+  course: one(courses, { fields: [lectures.courseId], references: [courses.id] }),
+  questions: many(questions),
+}));
+
+export const questionsRelations = relations(questions, ({ one }) => ({
+  course: one(courses, { fields: [questions.courseId], references: [courses.id] }),
+  lecture: one(lectures, { fields: [questions.lectureId], references: [lectures.id] }),
+}));
+
+export const quizzesRelations = relations(quizzes, ({ one, many }) => ({
+  course: one(courses, { fields: [quizzes.courseId], references: [courses.id] }),
+  quizQuestions: many(quizQuestions),
+  submissions: many(quizSubmissions),
+}));
+
+export const quizQuestionsRelations = relations(quizQuestions, ({ one }) => ({
+  quiz: one(quizzes, { fields: [quizQuestions.quizId], references: [quizzes.id] }),
+  question: one(questions, { fields: [quizQuestions.questionId], references: [questions.id] }),
+}));
+
+export const assignmentsRelations = relations(assignments, ({ one, many }) => ({
+  course: one(courses, { fields: [assignments.courseId], references: [courses.id] }),
+  submissions: many(assignmentSubmissions),
+}));
+
+export const enrollmentsRelations = relations(enrollments, ({ one }) => ({
+  course: one(courses, { fields: [enrollments.courseId], references: [courses.id] }),
+  student: one(users, { fields: [enrollments.studentId], references: [users.id] }),
+}));
+
+export const quizSubmissionsRelations = relations(quizSubmissions, ({ one, many }) => ({
+  quiz: one(quizzes, { fields: [quizSubmissions.quizId], references: [quizzes.id] }),
+  student: one(users, { fields: [quizSubmissions.studentId], references: [users.id] }),
+  violations: many(proctoringViolations),
+}));
+
+export const assignmentSubmissionsRelations = relations(assignmentSubmissions, ({ one }) => ({
+  assignment: one(assignments, { fields: [assignmentSubmissions.assignmentId], references: [assignments.id] }),
+  student: one(users, { fields: [assignmentSubmissions.studentId], references: [users.id] }),
+}));
+
+export const proctoringViolationsRelations = relations(proctoringViolations, ({ one }) => ({
+  submission: one(quizSubmissions, { fields: [proctoringViolations.submissionId], references: [quizSubmissions.id] }),
+}));
+
+// Chat models export (for Gemini integration)
+export * from "./models/chat";
+
+// Insert Schemas
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
+export const insertCourseSchema = createInsertSchema(courses).omit({ id: true, createdAt: true });
+export const insertLectureSchema = createInsertSchema(lectures).omit({ id: true, createdAt: true });
+export const insertQuestionSchema = createInsertSchema(questions).omit({ id: true, createdAt: true });
+export const insertQuizSchema = createInsertSchema(quizzes).omit({ id: true, createdAt: true });
+export const insertQuizQuestionSchema = createInsertSchema(quizQuestions).omit({ id: true });
+export const insertAssignmentSchema = createInsertSchema(assignments).omit({ id: true, createdAt: true });
+export const insertEnrollmentSchema = createInsertSchema(enrollments).omit({ id: true, enrolledAt: true });
+export const insertQuizSubmissionSchema = createInsertSchema(quizSubmissions).omit({ id: true, startedAt: true });
+export const insertAssignmentSubmissionSchema = createInsertSchema(assignmentSubmissions).omit({ id: true });
+export const insertProctoringViolationSchema = createInsertSchema(proctoringViolations).omit({ id: true, timestamp: true });
+
+// Types
 export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type Course = typeof courses.$inferSelect;
+export type InsertCourse = z.infer<typeof insertCourseSchema>;
+export type Lecture = typeof lectures.$inferSelect;
+export type InsertLecture = z.infer<typeof insertLectureSchema>;
+export type Question = typeof questions.$inferSelect;
+export type InsertQuestion = z.infer<typeof insertQuestionSchema>;
+export type Quiz = typeof quizzes.$inferSelect;
+export type InsertQuiz = z.infer<typeof insertQuizSchema>;
+export type QuizQuestion = typeof quizQuestions.$inferSelect;
+export type InsertQuizQuestion = z.infer<typeof insertQuizQuestionSchema>;
+export type Assignment = typeof assignments.$inferSelect;
+export type InsertAssignment = z.infer<typeof insertAssignmentSchema>;
+export type Enrollment = typeof enrollments.$inferSelect;
+export type InsertEnrollment = z.infer<typeof insertEnrollmentSchema>;
+export type QuizSubmission = typeof quizSubmissions.$inferSelect;
+export type InsertQuizSubmission = z.infer<typeof insertQuizSubmissionSchema>;
+export type AssignmentSubmission = typeof assignmentSubmissions.$inferSelect;
+export type InsertAssignmentSubmission = z.infer<typeof insertAssignmentSubmissionSchema>;
+export type ProctoringViolation = typeof proctoringViolations.$inferSelect;
+export type InsertProctoringViolation = z.infer<typeof insertProctoringViolationSchema>;
+
+// Extended types for frontend
+export type QuestionType = "mcq" | "true_false" | "short_answer" | "essay" | "fill_blank" | "matching";
+export type UserRole = "admin" | "instructor" | "student";
+export type AssessmentStatus = "draft" | "published" | "closed";
+export type SubmissionStatus = "in_progress" | "submitted" | "graded";
+export type ViolationType = "tab_switch" | "copy_paste" | "multiple_faces" | "no_face" | "phone_detected" | "unauthorized_person" | "looking_away" | "suspicious_behavior";

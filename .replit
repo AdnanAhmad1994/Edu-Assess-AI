@@ -37,3 +37,12 @@ author = "agent"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[agent]
+integrations = ["javascript_database:1.0.0", "javascript_gemini_ai_integrations:2.0.0", "javascript_object_storage:2.0.0"]
+
+[userenv]
+
+[userenv.shared]
+AI_INTEGRATIONS_GEMINI_BASE_URL = "http://localhost:1106/modelfarm/gemini"
+AI_INTEGRATIONS_GEMINI_API_KEY = "_DUMMY_API_KEY_"
