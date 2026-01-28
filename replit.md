@@ -40,8 +40,19 @@ Preferred communication style: Simple, everyday language.
 ### AI Integration
 - **Provider**: Google Gemini via Replit AI Integrations
 - **Models**: gemini-2.5-flash (fast), gemini-2.5-pro (advanced), gemini-2.5-flash-image (image generation)
-- **Use Cases**: Quiz question generation, content summarization, AI-based grading
+- **Use Cases**: Quiz question generation, content summarization, AI-based grading, chatbot intent parsing
 - **Batch Processing**: Utility for rate-limited batch AI operations with retry logic
+- **Agentic Chatbot**: AI-powered assistant that can execute app commands via natural language (create quizzes, generate public links, list courses, view analytics)
+
+### Public Quiz Links
+- **Access Token**: Each quiz can have a public access token for sharing
+- **Permission Levels**: "view" (see questions/answers only) or "attempt" (take the quiz)
+- **Identification**: Custom required fields (name, email) for anonymous users
+- **No Auth Required**: Public quiz pages accessible without login
+- **API Endpoints**: 
+  - `POST /api/quizzes/:id/generate-public-link` - Generate public link
+  - `GET /api/public/quiz/:token` - Access quiz data
+  - `POST /api/public/quiz/:token/submit` - Submit quiz answers
 
 ### Key Design Patterns
 - **Shared Schema**: Database types and Zod schemas shared between client and server via `@shared/*` path alias
