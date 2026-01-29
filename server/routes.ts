@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import session from "express-session";
 import { storage } from "./storage";
 import { GoogleGenAI } from "@google/genai";
+import * as XLSX from "xlsx";
 import {
   insertUserSchema,
   insertCourseSchema,
@@ -179,6 +180,88 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Create course error:", error);
       res.status(400).json({ error: "Failed to create course" });
+    }
+  });
+
+  app.post("/api/courses/import", requireInstructor, async (req, res) => {
+    try {
+      const { fileData, fileType } = req.body as { fileData: string; fileType: string };
+      if (!fileData) {
+        return res.status(400).json({ error: "No file data provided" });
+      }
+
+      if (!["csv", "xlsx", "xls"].includes(fileType)) {
+        return res.status(400).json({ error: "Unsupported file type. Use CSV or Excel files." });
+      }
+
+      const MAX_SIZE = 5 * 1024 * 1024;
+      if (fileData.length > MAX_SIZE) {
+        return res.status(400).json({ error: "File too large. Maximum size is 5MB." });
+      }
+
+      const buffer = Buffer.from(fileData, "base64");
+      const workbook = XLSX.read(buffer, { type: "buffer" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(sheet);
+
+      const MAX_ROWS = 500;
+      if (jsonData.length > MAX_ROWS) {
+        return res.status(400).json({ error: `Too many rows. Maximum is ${MAX_ROWS} courses per import.` });
+      }
+
+      const courseSchema = insertCourseSchema.omit({ instructorId: true });
+      const validCourses: Array<{ name: string; code: string; description?: string; semester: string }> = [];
+      const errors: string[] = [];
+
+      for (let i = 0; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        const name = String(row.name || row.Name || row.NAME || "").trim();
+        const code = String(row.code || row.Code || row.CODE || "").trim();
+        const semester = String(row.semester || row.Semester || row.SEMESTER || "").trim();
+        const description = String(row.description || row.Description || row.DESCRIPTION || "").trim();
+
+        const courseData = { name, code, semester, description: description || undefined };
+        const result = courseSchema.safeParse(courseData);
+
+        if (result.success) {
+          validCourses.push(courseData);
+        } else {
+          errors.push(`Row ${i + 2}: ${result.error.errors.map(e => e.message).join(", ")}`);
+        }
+      }
+
+      if (validCourses.length === 0) {
+        return res.status(400).json({ 
+          error: "No valid courses found in file. Required columns: name, code, semester",
+          details: errors.slice(0, 10)
+        });
+      }
+
+      const createdCourses = [];
+      for (const courseData of validCourses) {
+        try {
+          const course = await storage.createCourse({
+            ...courseData,
+            instructorId: req.session.userId!,
+          });
+          createdCourses.push(course);
+        } catch (err) {
+          console.error("Failed to create course:", courseData.name, err);
+        }
+      }
+
+      res.status(201).json({
+        message: `Successfully imported ${createdCourses.length} of ${validCourses.length} valid courses`,
+        imported: createdCourses.length,
+        total: jsonData.length,
+        valid: validCourses.length,
+        courses: createdCourses,
+        errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
+      });
+    } catch (error) {
+      console.error("Import courses error:", error);
+      res.status(400).json({ error: "Failed to import courses. Check file format." });
     }
   });
 
