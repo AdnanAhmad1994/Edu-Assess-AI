@@ -16,6 +16,8 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import { sendPasswordResetEmail, sendUsernameReminderEmail } from "./email";
 
 declare module "express-session" {
   interface SessionData {
@@ -130,6 +132,85 @@ export async function registerRoutes(
       res.clearCookie("connect.sid");
       res.json({ message: "Logged out" });
     });
+  });
+
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email || typeof email !== "string") {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(email.trim().toLowerCase());
+      if (user) {
+        const token = crypto.randomBytes(32).toString("hex");
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+        await storage.createPasswordResetToken(user.id, token, expiresAt);
+
+        const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+        const resetUrl = `${baseUrl}/reset-password/${token}`;
+        await sendPasswordResetEmail(user.email, resetUrl, user.name);
+      }
+
+      res.json({ message: "If an account with that email exists, a password reset link has been sent." });
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      res.status(500).json({ error: "Failed to process request" });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, newPassword } = req.body;
+      if (!token || !newPassword || typeof newPassword !== "string") {
+        return res.status(400).json({ error: "Token and new password are required" });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+
+      const resetToken = await storage.getPasswordResetToken(token);
+      if (!resetToken) {
+        return res.status(400).json({ error: "Invalid or expired reset link" });
+      }
+
+      if (resetToken.used) {
+        return res.status(400).json({ error: "This reset link has already been used" });
+      }
+
+      if (new Date() > resetToken.expiresAt) {
+        return res.status(400).json({ error: "This reset link has expired" });
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateUser(resetToken.userId, { password: hashedPassword });
+      await storage.markPasswordResetTokenUsed(token);
+
+      res.json({ message: "Password has been reset successfully" });
+    } catch (error) {
+      console.error("Reset password error:", error);
+      res.status(500).json({ error: "Failed to reset password" });
+    }
+  });
+
+  app.post("/api/auth/forgot-username", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email || typeof email !== "string") {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(email.trim().toLowerCase());
+      if (user) {
+        await sendUsernameReminderEmail(user.email, user.username, user.name);
+      }
+
+      res.json({ message: "If an account with that email exists, your username has been sent." });
+    } catch (error) {
+      console.error("Forgot username error:", error);
+      res.status(500).json({ error: "Failed to process request" });
+    }
   });
 
   app.get("/api/auth/me", async (req, res) => {

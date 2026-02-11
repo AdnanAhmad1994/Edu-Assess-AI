@@ -146,13 +146,33 @@ export default function LoginPage() {
                 >
                   {isLoading ? "Signing in..." : "Sign In"}
                 </Button>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="p-0 h-auto font-normal text-xs text-muted-foreground"
+                    onClick={() => setLocation("/forgot-password")}
+                    data-testid="link-forgot-password"
+                  >
+                    Forgot password?
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="p-0 h-auto font-normal text-xs text-muted-foreground"
+                    onClick={() => setLocation("/forgot-username")}
+                    data-testid="link-forgot-username"
+                  >
+                    Forgot username?
+                  </Button>
+                </div>
               </form>
             </Form>
             <div className="mt-6 text-center text-sm text-muted-foreground">
               Don't have an account?{" "}
               <Button 
-                variant="link" 
-                className="p-0 h-auto font-medium"
+                variant="ghost" 
+                className="p-0 h-auto font-medium text-primary"
                 onClick={() => setLocation("/register")}
                 data-testid="link-register"
               >

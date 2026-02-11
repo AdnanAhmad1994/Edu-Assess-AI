@@ -23,6 +23,9 @@ import AnalyticsPage from "@/pages/analytics";
 import LecturesPage from "@/pages/lectures";
 import PublicQuizPage from "@/pages/public-quiz";
 import SettingsPage from "@/pages/settings";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import ForgotUsernamePage from "@/pages/forgot-username";
+import ResetPasswordPage from "@/pages/reset-password";
 import Chatbot from "@/components/Chatbot";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -103,6 +106,15 @@ function Router() {
       </Route>
       <Route path="/register">
         <PublicOnlyRoute component={RegisterPage} />
+      </Route>
+      <Route path="/forgot-password">
+        <PublicOnlyRoute component={ForgotPasswordPage} />
+      </Route>
+      <Route path="/forgot-username">
+        <PublicOnlyRoute component={ForgotUsernamePage} />
+      </Route>
+      <Route path="/reset-password/:token">
+        <ResetPasswordPage />
       </Route>
 
       <Route path="/dashboard">
