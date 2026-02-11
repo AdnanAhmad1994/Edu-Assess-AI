@@ -98,7 +98,7 @@ export async function registerRoutes(
       const user = await storage.createUser({ ...data, password: hashedPassword });
       
       req.session.userId = user.id;
-      const { password: _, ...userWithoutPassword } = user;
+      const { password: _, patternHash: _ph, ...userWithoutPassword } = user;
       res.status(201).json(userWithoutPassword);
     } catch (error) {
       console.error("Registration error:", error);
@@ -116,7 +116,7 @@ export async function registerRoutes(
       }
       
       req.session.userId = user.id;
-      const { password: _, ...userWithoutPassword } = user;
+      const { password: _, patternHash: _ph, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
     } catch (error) {
       console.error("Login error:", error);
@@ -229,8 +229,8 @@ export async function registerRoutes(
     if (!user) {
       return res.status(401).json({ error: "User not found" });
     }
-    const { password: _, geminiApiKey: _k, ...userWithoutSensitive } = user;
-    res.json({ ...userWithoutSensitive, hasGeminiKey: !!user.geminiApiKey });
+    const { password: _, geminiApiKey: _k, patternHash: _ph, ...userWithoutSensitive } = user;
+    res.json({ ...userWithoutSensitive, hasGeminiKey: !!user.geminiApiKey, hasPattern: !!user.patternHash });
   });
 
   // Settings - Gemini API Key
@@ -279,6 +279,74 @@ export async function registerRoutes(
       }
     } catch (error: any) {
       res.json({ valid: false, message: error.message || "Invalid API key" });
+    }
+  });
+
+  // Pattern Lock Settings
+  app.get("/api/settings/pattern", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      res.json({ enabled: !!user.patternHash });
+    } catch (error) {
+      console.error("Get pattern status error:", error);
+      res.status(500).json({ error: "Failed to get pattern status" });
+    }
+  });
+
+  app.put("/api/settings/pattern", requireAuth, async (req, res) => {
+    try {
+      const { pattern } = req.body;
+      if (!pattern || !Array.isArray(pattern) || pattern.length < 4) {
+        return res.status(400).json({ error: "Pattern must connect at least 4 dots" });
+      }
+      const valid = pattern.every((n: any) => typeof n === "number" && n >= 0 && n <= 8);
+      const unique = new Set(pattern).size === pattern.length;
+      if (!valid || !unique) {
+        return res.status(400).json({ error: "Invalid pattern: must be unique dots numbered 0-8" });
+      }
+      const patternString = pattern.join("-");
+      const patternHash = await bcrypt.hash(patternString, 10);
+      await storage.updateUser(req.session.userId!, { patternHash });
+      res.json({ message: "Pattern lock set successfully", enabled: true });
+    } catch (error) {
+      console.error("Set pattern error:", error);
+      res.status(500).json({ error: "Failed to set pattern" });
+    }
+  });
+
+  app.delete("/api/settings/pattern", requireAuth, async (req, res) => {
+    try {
+      await storage.updateUser(req.session.userId!, { patternHash: null });
+      res.json({ message: "Pattern lock removed", enabled: false });
+    } catch (error) {
+      console.error("Clear pattern error:", error);
+      res.status(500).json({ error: "Failed to clear pattern" });
+    }
+  });
+
+  // Pattern Login (public)
+  app.post("/api/auth/pattern-login", async (req, res) => {
+    try {
+      const { username, pattern } = req.body;
+      if (!username || !pattern || !Array.isArray(pattern)) {
+        return res.status(400).json({ error: "Username and pattern are required" });
+      }
+      const user = await storage.getUserByUsername(username.trim());
+      if (!user || !user.patternHash) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      const patternString = pattern.join("-");
+      const isMatch = await bcrypt.compare(patternString, user.patternHash);
+      if (!isMatch) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      req.session.userId = user.id;
+      const { password: _, patternHash: __, ...safeUser } = user;
+      res.json(safeUser);
+    } catch (error) {
+      console.error("Pattern login error:", error);
+      res.status(500).json({ error: "Login failed" });
     }
   });
 
