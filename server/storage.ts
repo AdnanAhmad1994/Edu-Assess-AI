@@ -155,6 +155,7 @@ export class MemStorage implements IStorage {
       role: insertUser.role ?? "student",
       avatarUrl: insertUser.avatarUrl ?? null,
       geminiApiKey: insertUser.geminiApiKey ?? null,
+      patternHash: insertUser.patternHash ?? null,
       createdAt: new Date(),
     };
     this.users.set(id, user);
