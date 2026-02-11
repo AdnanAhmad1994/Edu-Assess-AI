@@ -115,7 +115,8 @@ export default function QuizBuilderPage() {
 
   const generateQuestionsMutation = useMutation({
     mutationFn: async (data: { content: string; courseId: string; numQuestions: number; difficulty: string }) => {
-      return apiRequest("POST", "/api/ai/generate-questions", data);
+      const res = await apiRequest("POST", "/api/ai/generate-questions", data);
+      return res.json();
     },
     onSuccess: (data: any) => {
       if (data.questions) {

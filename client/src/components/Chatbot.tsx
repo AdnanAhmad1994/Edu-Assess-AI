@@ -48,19 +48,26 @@ type PanelSize = "closed" | "compact" | "expanded";
 
 const quickActionGroups = [
   {
+    label: "Multi-Task",
+    icon: Sparkles,
+    actions: [
+      { label: "Course + Quiz", command: "Create a course called 'Data Science' and then create a quiz on machine learning fundamentals" },
+      { label: "Full setup", command: "Create a course called 'Web Dev', add a quiz on React.js, and create an assignment on building a todo app" },
+    ],
+  },
+  {
     label: "Courses",
     icon: BookOpen,
     actions: [
       { label: "Create course", command: "Create a new course called 'Introduction to AI' with code AI101 for Spring 2026" },
       { label: "List courses", command: "List all my courses" },
-      { label: "Delete a course", command: "Delete a course" },
     ],
   },
   {
     label: "Quizzes",
     icon: FileQuestion,
     actions: [
-      { label: "Create quiz", command: "Create a new quiz" },
+      { label: "AI Quiz", command: "Create a quiz on artificial intelligence with 5 questions" },
       { label: "List quizzes", command: "List all my quizzes" },
       { label: "Publish quiz", command: "Publish my latest quiz" },
       { label: "Public link", command: "Generate a public link for my quiz" },
@@ -71,9 +78,7 @@ const quickActionGroups = [
     icon: GraduationCap,
     actions: [
       { label: "Create assignment", command: "Create a new assignment" },
-      { label: "List assignments", command: "List all assignments" },
       { label: "Create lecture", command: "Create a new lecture" },
-      { label: "List lectures", command: "List all lectures" },
     ],
   },
   {
@@ -82,7 +87,6 @@ const quickActionGroups = [
     actions: [
       { label: "Dashboard stats", command: "Show my dashboard analytics" },
       { label: "Quiz results", command: "Show quiz submission results" },
-      { label: "Student overview", command: "List enrolled students" },
     ],
   },
 ];
@@ -95,14 +99,12 @@ export default function Chatbot() {
     {
       id: "welcome",
       role: "assistant",
-      content: "Hi! I'm your EduAssess Co-pilot. I can perform any task for you. Just tell me what you need:\n\n" +
-        "- Create, edit, or delete courses\n" +
-        "- Create and publish quizzes\n" +
-        "- Generate public quiz links\n" +
-        "- Create assignments and lectures\n" +
-        "- View analytics and submissions\n" +
+      content: "Hi! I'm your EduAssess Co-pilot. I can handle multiple tasks at once, just like a real assistant!\n\n" +
+        "- Create courses, quizzes with AI questions, assignments, lectures\n" +
+        "- Publish quizzes, generate public links\n" +
+        "- View analytics, submissions, enrollments\n" +
         "- Navigate to any page\n\n" +
-        "Try: \"Create a course called Machine Learning\"",
+        "Try: \"Create a course called AI and then create a quiz on neural networks\"",
       timestamp: new Date(),
     },
   ]);
@@ -285,6 +287,11 @@ export default function Chatbot() {
             </Badge>
             {data.quiz.status && (
               <Badge variant="outline" className="text-xs">{data.quiz.status}</Badge>
+            )}
+            {data.questionsGenerated && (
+              <Badge variant="default" className="text-xs">
+                {data.questionsGenerated} AI questions
+              </Badge>
             )}
           </div>
         )}

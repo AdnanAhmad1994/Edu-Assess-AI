@@ -1107,21 +1107,34 @@ Return ONLY a JSON array of violations found (empty array if none):
       
       const intentPrompt = `You are an AI co-pilot for an educational assessment platform called EduAssess AI. You help instructors and admins manage their platform.
 
-Analyze this user command and extract the intent and parameters. Return a JSON object with:
-- intent: one of these exact values:
-  "create_quiz", "create_course", "create_assignment", "create_lecture",
-  "list_quizzes", "list_courses", "list_assignments", "list_lectures", "list_enrollments", "list_submissions",
-  "publish_quiz", "delete_quiz", "delete_course", "delete_assignment", "delete_lecture",
-  "generate_public_link", "view_analytics",
-  "navigate", "help", "unknown"
-- parameters: relevant extracted parameters. Examples:
-  - For create: title, name, code, semester, description, courseName, dueDate, points
-  - For delete/publish: name or title of the target resource
-  - For navigate: page (one of: dashboard, courses, quizzes, assignments, lectures, analytics, quiz-builder)
-  - For generate_public_link: quizName, permission ("view" or "attempt")
-  - For list_submissions: quizName
-  - For list_enrollments: courseName
-- message: a brief human-friendly confirmation message of what you'll do
+Analyze this user command and extract ALL intents. The user may request MULTIPLE tasks in a single message. You must detect and return ALL of them as an ordered array.
+
+Return a JSON object with:
+- tasks: an array of task objects, each containing:
+  - intent: one of these exact values:
+    "create_quiz", "create_course", "create_assignment", "create_lecture",
+    "list_quizzes", "list_courses", "list_assignments", "list_lectures", "list_enrollments", "list_submissions",
+    "publish_quiz", "delete_quiz", "delete_course", "delete_assignment", "delete_lecture",
+    "generate_public_link", "view_analytics",
+    "navigate", "help", "unknown"
+  - parameters: relevant extracted parameters. Examples:
+    - For create_course: name, code, semester, description
+    - For create_quiz: title, topic, courseName, numQuestions, difficulty, generateQuestions (true if user wants AI-generated questions)
+    - For create_assignment: title, courseName, dueDate, points, description
+    - For create_lecture: title, courseName, unit, description
+    - For delete/publish: name or title of the target resource
+    - For navigate: page (one of: dashboard, courses, quizzes, assignments, lectures, analytics, quiz-builder)
+    - For generate_public_link: quizName, permission ("view" or "attempt")
+    - For list_submissions: quizName
+    - For list_enrollments: courseName
+- message: a brief human-friendly summary of ALL actions you'll perform
+
+IMPORTANT RULES:
+- If the user says "create a course X and then create a quiz Y on topic Z", return TWO tasks: create_course + create_quiz.
+- If the user says "create a quiz on topic X", set generateQuestions=true and include the topic so AI questions are auto-generated.
+- If you see keywords like "and", "then", "also", "plus" connecting different actions, split them into separate tasks.
+- Order tasks logically: create courses before quizzes/assignments that depend on them.
+- If a quiz references a course being created in the same message, use the SAME course name in the quiz's courseName parameter.
 
 User command: "${command}"
 
@@ -1135,38 +1148,43 @@ Return only valid JSON, no markdown.`;
       
       const responseText = response.text || "";
       
-      let parsed;
+      let parsed: { tasks: Array<{ intent: string; parameters: any }>; message: string };
       try {
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        parsed = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
+        const raw = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
+        if (raw.tasks && Array.isArray(raw.tasks)) {
+          parsed = raw;
+        } else if (raw.intent) {
+          parsed = { tasks: [{ intent: raw.intent, parameters: raw.parameters || {} }], message: raw.message || "" };
+        } else {
+          parsed = { tasks: [{ intent: "unknown", parameters: {} }], message: raw.message || "" };
+        }
       } catch {
-        parsed = { intent: "unknown", parameters: {}, message: "I couldn't understand that. Try commands like 'create a course', 'list quizzes', or 'show analytics'." };
+        parsed = { tasks: [{ intent: "unknown", parameters: {} }], message: "I couldn't understand that. Try commands like 'create a course', 'list quizzes', or 'show analytics'." };
       }
-      
-      let result: { success: boolean; message: string; data?: any } = { 
-        success: false, 
-        message: "Unknown command" 
-      };
 
-      const intent = parsed.intent;
-      const params = parsed.parameters || {};
       const user = await storage.getUser(userId);
       const isAdmin = user?.role === "admin";
 
-      const myCourses = await storage.getCourses(userId);
-      const myCourseIds = new Set(myCourses.map(c => c.id));
+      const refreshCourses = async () => {
+        const courses = await storage.getCourses(userId);
+        return courses;
+      };
 
-      const findCourse = (name?: string) => {
+      const findCourse = async (name?: string) => {
+        const courses = await refreshCourses();
         if (name) {
-          const match = myCourses.find(c => c.name.toLowerCase().includes(name.toLowerCase()) || c.code.toLowerCase().includes(name.toLowerCase()));
+          const match = courses.find(c => c.name.toLowerCase().includes(name.toLowerCase()) || c.code.toLowerCase().includes(name.toLowerCase()));
           if (match) return match;
         }
-        return myCourses[0];
+        return courses[0];
       };
 
       const findMyQuiz = async (name?: string) => {
+        const courses = await refreshCourses();
+        const courseIds = new Set(courses.map(c => c.id));
         const allQuizzes = await storage.getQuizzes();
-        const myQuizzes = isAdmin ? allQuizzes : allQuizzes.filter(q => myCourseIds.has(q.courseId));
+        const myQuizzes = isAdmin ? allQuizzes : allQuizzes.filter(q => courseIds.has(q.courseId));
         if (name) {
           const match = myQuizzes.find(q => q.title.toLowerCase().includes(name.toLowerCase()));
           if (match) return match;
@@ -1175,213 +1193,286 @@ Return only valid JSON, no markdown.`;
       };
 
       const getMyQuizzes = async () => {
+        const courses = await refreshCourses();
+        const courseIds = new Set(courses.map(c => c.id));
         const allQuizzes = await storage.getQuizzes();
-        return isAdmin ? allQuizzes : allQuizzes.filter(q => myCourseIds.has(q.courseId));
+        return isAdmin ? allQuizzes : allQuizzes.filter(q => courseIds.has(q.courseId));
       };
 
       const getMyAssignments = async () => {
+        const courses = await refreshCourses();
+        const courseIds = new Set(courses.map(c => c.id));
         const allAssignments = await storage.getAssignments();
-        return isAdmin ? allAssignments : allAssignments.filter(a => myCourseIds.has(a.courseId));
+        return isAdmin ? allAssignments : allAssignments.filter(a => courseIds.has(a.courseId));
       };
 
       const getMyLectures = async () => {
+        const courses = await refreshCourses();
+        const courseIds = new Set(courses.map(c => c.id));
         const allLectures = await storage.getLectures();
-        return isAdmin ? allLectures : allLectures.filter(l => myCourseIds.has(l.courseId));
+        return isAdmin ? allLectures : allLectures.filter(l => courseIds.has(l.courseId));
       };
 
-      if (intent === "create_course") {
-        const course = await storage.createCourse({
-          name: params.name || params.title || "New Course",
-          code: params.code || "COURSE101",
-          semester: params.semester || "Spring 2026",
-          description: params.description || "",
-          instructorId: userId,
-        });
-        result = { success: true, message: `Created course "${course.name}" (${course.code})`, data: { course } };
+      const executeTask = async (intent: string, params: any): Promise<{ success: boolean; message: string; data?: any }> => {
+        if (intent === "create_course") {
+          const course = await storage.createCourse({
+            name: params.name || params.title || "New Course",
+            code: params.code || `COURSE${Math.floor(100 + Math.random() * 900)}`,
+            semester: params.semester || "Spring 2026",
+            description: params.description || "",
+            instructorId: userId,
+          });
+          return { success: true, message: `Created course "${course.name}" (${course.code})`, data: { course } };
 
-      } else if (intent === "create_quiz") {
-        const course = await findCourse(params.courseName);
-        if (course) {
+        } else if (intent === "create_quiz") {
+          const course = await findCourse(params.courseName || params.course);
+          if (!course) {
+            return { success: false, message: "No courses found. Create a course first before adding quizzes." };
+          }
+          const quizTitle = params.title || params.name || params.topic || "New Quiz";
           const quiz = await storage.createQuiz({
             courseId: course.id,
-            title: params.title || params.name || "New Quiz",
-            description: params.description || "Created via Co-pilot",
+            title: quizTitle,
+            description: params.description || `Quiz on ${params.topic || quizTitle}`,
             status: "draft",
           });
-          result = { success: true, message: `Created quiz "${quiz.title}" in "${course.name}". You can add questions in the Quiz Builder.`, data: { quiz, navigateTo: "/quizzes" } };
-        } else {
-          result = { success: false, message: "No courses found. Create a course first before adding quizzes." };
-        }
 
-      } else if (intent === "create_assignment") {
-        const course = await findCourse(params.courseName);
-        if (course) {
+          if (params.generateQuestions || params.topic) {
+            try {
+              const topic = params.topic || params.title || params.name || quizTitle;
+              const numQuestions = params.numQuestions || 5;
+              const difficulty = params.difficulty || "mixed";
+              const genPrompt = `Generate ${numQuestions} quiz questions about "${topic}".
+Return a JSON object with a "questions" array. Each question should have:
+- type: one of "mcq", "true_false", "short_answer", "fill_blank"
+- text: the question text
+- options: array of options (for mcq, 4 options; for true_false use ["True","False"]; empty array for others)
+- correctAnswer: the correct answer string
+- difficulty: "${difficulty === "mixed" ? "easy, medium, or hard (vary them)" : difficulty}"
+- points: 1 for easy, 2 for medium, 3 for hard
+
+Make questions clear, educational, and varied in type.
+Return only valid JSON, no markdown.`;
+
+              const genResponse = await ai.models.generateContent({
+                model: "gemini-2.5-flash",
+                contents: genPrompt,
+              });
+              const genText = genResponse.text || "";
+              const genMatch = genText.match(/\{[\s\S]*\}/);
+              if (genMatch) {
+                const genParsed = JSON.parse(genMatch[0]);
+                if (genParsed.questions && Array.isArray(genParsed.questions)) {
+                  for (let qi = 0; qi < genParsed.questions.length; qi++) {
+                    const q = genParsed.questions[qi];
+                    const question = await storage.createQuestion({
+                      courseId: course.id,
+                      type: q.type || "mcq",
+                      text: q.text,
+                      options: q.options || [],
+                      correctAnswer: q.correctAnswer || "",
+                      points: q.points || 1,
+                      difficulty: q.difficulty || "medium",
+                      aiGenerated: true,
+                    });
+                    await storage.addQuizQuestion({
+                      quizId: quiz.id,
+                      questionId: question.id,
+                      orderIndex: qi,
+                    });
+                  }
+                  return {
+                    success: true,
+                    message: `Created quiz "${quiz.title}" in "${course.name}" with ${genParsed.questions.length} AI-generated questions`,
+                    data: { quiz, questionsGenerated: genParsed.questions.length, navigateTo: "/quizzes" },
+                  };
+                }
+              }
+            } catch (genErr) {
+              console.error("AI question generation in chatbot failed:", genErr);
+            }
+          }
+
+          return { success: true, message: `Created quiz "${quiz.title}" in "${course.name}". You can add questions in the Quiz Builder.`, data: { quiz, navigateTo: "/quizzes" } };
+
+        } else if (intent === "create_assignment") {
+          const course = await findCourse(params.courseName);
+          if (!course) return { success: false, message: "No courses found. Create a course first." };
           const assignment = await storage.createAssignment({
             courseId: course.id,
             title: params.title || params.name || "New Assignment",
             description: params.description || "Created via Co-pilot",
             dueDate: params.dueDate ? new Date(params.dueDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            totalPoints: params.points ? parseInt(params.points) : 100,
+            maxScore: params.points ? parseInt(params.points) : 100,
             status: "draft",
           });
-          result = { success: true, message: `Created assignment "${assignment.title}" in "${course.name}" (due ${assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : "in 7 days"})`, data: { assignment } };
-        } else {
-          result = { success: false, message: "No courses found. Create a course first." };
-        }
+          return { success: true, message: `Created assignment "${assignment.title}" in "${course.name}" (due ${assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : "in 7 days"})`, data: { assignment } };
 
-      } else if (intent === "create_lecture") {
-        const course = await findCourse(params.courseName);
-        if (course) {
+        } else if (intent === "create_lecture") {
+          const course = await findCourse(params.courseName);
+          if (!course) return { success: false, message: "No courses found. Create a course first." };
           const lecture = await storage.createLecture({
             courseId: course.id,
             title: params.title || params.name || "New Lecture",
             description: params.description || "Created via Co-pilot",
             unit: params.unit || "Unit 1",
           });
-          result = { success: true, message: `Created lecture "${lecture.title}" in "${course.name}"`, data: { lecture } };
-        } else {
-          result = { success: false, message: "No courses found. Create a course first." };
-        }
+          return { success: true, message: `Created lecture "${lecture.title}" in "${course.name}"`, data: { lecture } };
 
-      } else if (intent === "publish_quiz") {
-        const quiz = await findMyQuiz(params.title || params.name || params.quizName);
-        if (quiz) {
+        } else if (intent === "publish_quiz") {
+          const quiz = await findMyQuiz(params.title || params.name || params.quizName);
+          if (!quiz) return { success: false, message: "No quizzes found to publish." };
           const updated = await storage.updateQuiz(quiz.id, { status: "published" });
-          result = { success: true, message: `Published quiz "${quiz.title}". Students can now take it.`, data: { quiz: updated } };
-        } else {
-          result = { success: false, message: "No quizzes found to publish." };
-        }
+          return { success: true, message: `Published quiz "${quiz.title}". Students can now take it.`, data: { quiz: updated } };
 
-      } else if (intent === "delete_quiz") {
-        const quiz = await findMyQuiz(params.title || params.name || params.quizName);
-        if (quiz) {
+        } else if (intent === "delete_quiz") {
+          const quiz = await findMyQuiz(params.title || params.name || params.quizName);
+          if (!quiz) return { success: false, message: "No matching quiz found to delete." };
           await storage.deleteQuiz(quiz.id);
-          result = { success: true, message: `Deleted quiz "${quiz.title}"`, data: { deleted: true } };
-        } else {
-          result = { success: false, message: "No matching quiz found to delete." };
-        }
+          return { success: true, message: `Deleted quiz "${quiz.title}"`, data: { deleted: true } };
 
-      } else if (intent === "delete_course") {
-        const course = findCourse(params.name || params.title || params.courseName);
-        if (course) {
+        } else if (intent === "delete_course") {
+          const course = await findCourse(params.name || params.title || params.courseName);
+          if (!course) return { success: false, message: "No matching course found to delete." };
           await storage.deleteCourse(course.id);
-          result = { success: true, message: `Deleted course "${course.name}" (${course.code})`, data: { deleted: true } };
-        } else {
-          result = { success: false, message: "No matching course found to delete." };
-        }
+          return { success: true, message: `Deleted course "${course.name}" (${course.code})`, data: { deleted: true } };
 
-      } else if (intent === "delete_assignment") {
-        const myAssignments = await getMyAssignments();
-        const target = params.title || params.name || "";
-        const match = target ? myAssignments.find(a => a.title.toLowerCase().includes(target.toLowerCase())) : myAssignments[myAssignments.length - 1];
-        if (match) {
+        } else if (intent === "delete_assignment") {
+          const myAssignments = await getMyAssignments();
+          const target = params.title || params.name || "";
+          const match = target ? myAssignments.find(a => a.title.toLowerCase().includes(target.toLowerCase())) : myAssignments[myAssignments.length - 1];
+          if (!match) return { success: false, message: "No assignments found to delete." };
           await storage.deleteAssignment(match.id);
-          result = { success: true, message: `Deleted assignment "${match.title}"`, data: { deleted: true } };
-        } else {
-          result = { success: false, message: "No assignments found to delete." };
-        }
+          return { success: true, message: `Deleted assignment "${match.title}"`, data: { deleted: true } };
 
-      } else if (intent === "delete_lecture") {
-        const myLectures = await getMyLectures();
-        const target = params.title || params.name || "";
-        const match = target ? myLectures.find(l => l.title.toLowerCase().includes(target.toLowerCase())) : myLectures[myLectures.length - 1];
-        if (match) {
+        } else if (intent === "delete_lecture") {
+          const myLectures = await getMyLectures();
+          const target = params.title || params.name || "";
+          const match = target ? myLectures.find(l => l.title.toLowerCase().includes(target.toLowerCase())) : myLectures[myLectures.length - 1];
+          if (!match) return { success: false, message: "No lectures found to delete." };
           await storage.deleteLecture(match.id);
-          result = { success: true, message: `Deleted lecture "${match.title}"`, data: { deleted: true } };
-        } else {
-          result = { success: false, message: "No lectures found to delete." };
-        }
+          return { success: true, message: `Deleted lecture "${match.title}"`, data: { deleted: true } };
 
-      } else if (intent === "generate_public_link") {
-        const quiz = await findMyQuiz(params.quizName || params.title || params.name);
-        if (quiz) {
+        } else if (intent === "generate_public_link") {
+          const quiz = await findMyQuiz(params.quizName || params.title || params.name);
+          if (!quiz) return { success: false, message: "No quizzes found to generate a link for." };
           const permission = params.permission === "view" ? "view" : "attempt";
           const updated = await storage.generateQuizPublicLink(quiz.id, permission, ["name", "email"]);
-          if (updated) {
-            result = { success: true, message: `Generated ${permission}-only public link for "${quiz.title}"`, data: { quiz: updated } };
-          } else {
-            result = { success: false, message: "Failed to generate public link." };
-          }
-        } else {
-          result = { success: false, message: "No quizzes found to generate a link for." };
-        }
+          if (!updated) return { success: false, message: "Failed to generate public link." };
+          return { success: true, message: `Generated ${permission}-only public link for "${quiz.title}"`, data: { quiz: updated } };
 
-      } else if (intent === "list_quizzes") {
-        const myQuizzes = await getMyQuizzes();
-        result = { success: true, message: `Found ${myQuizzes.length} quizzes`, data: { quizzes: myQuizzes.slice(0, 10) } };
+        } else if (intent === "list_quizzes") {
+          const myQuizzes = await getMyQuizzes();
+          return { success: true, message: `Found ${myQuizzes.length} quizzes`, data: { quizzes: myQuizzes.slice(0, 10) } };
 
-      } else if (intent === "list_courses") {
-        result = { success: true, message: `Found ${myCourses.length} courses`, data: { courses: myCourses } };
+        } else if (intent === "list_courses") {
+          const courses = await refreshCourses();
+          return { success: true, message: `Found ${courses.length} courses`, data: { courses } };
 
-      } else if (intent === "list_assignments") {
-        const myAssignments = await getMyAssignments();
-        result = { success: true, message: `Found ${myAssignments.length} assignments`, data: { assignments: myAssignments.slice(0, 10) } };
+        } else if (intent === "list_assignments") {
+          const myAssignments = await getMyAssignments();
+          return { success: true, message: `Found ${myAssignments.length} assignments`, data: { assignments: myAssignments.slice(0, 10) } };
 
-      } else if (intent === "list_lectures") {
-        const myLectures = await getMyLectures();
-        result = { success: true, message: `Found ${myLectures.length} lectures`, data: { lectures: myLectures.slice(0, 10) } };
+        } else if (intent === "list_lectures") {
+          const myLectures = await getMyLectures();
+          return { success: true, message: `Found ${myLectures.length} lectures`, data: { lectures: myLectures.slice(0, 10) } };
 
-      } else if (intent === "list_enrollments") {
-        const course = findCourse(params.courseName);
-        if (course) {
+        } else if (intent === "list_enrollments") {
+          const course = await findCourse(params.courseName);
+          if (!course) return { success: false, message: "No courses found." };
           const enrollments = await storage.getEnrollments(course.id);
-          result = { success: true, message: `Found ${enrollments.length} enrolled students in "${course.name}"`, data: { enrollments } };
-        } else {
-          result = { success: false, message: "No courses found." };
-        }
+          return { success: true, message: `Found ${enrollments.length} enrolled students in "${course.name}"`, data: { enrollments } };
 
-      } else if (intent === "list_submissions") {
-        const quiz = await findMyQuiz(params.quizName || params.title);
-        if (quiz) {
+        } else if (intent === "list_submissions") {
+          const quiz = await findMyQuiz(params.quizName || params.title);
+          if (!quiz) return { success: false, message: "No quizzes found." };
           const submissions = await storage.getQuizSubmissions(quiz.id);
-          result = { success: true, message: `Found ${submissions.length} submissions for "${quiz.title}"`, data: { submissions: submissions.slice(0, 10) } };
+          return { success: true, message: `Found ${submissions.length} submissions for "${quiz.title}"`, data: { submissions: submissions.slice(0, 10) } };
+
+        } else if (intent === "view_analytics") {
+          const stats = await storage.getDashboardStats(userId);
+          return { success: true, message: "Here are your analytics", data: { stats } };
+
+        } else if (intent === "navigate") {
+          const pageMap: Record<string, string> = {
+            dashboard: "/dashboard",
+            courses: "/courses",
+            quizzes: "/quizzes",
+            assignments: "/assignments",
+            lectures: "/lectures",
+            analytics: "/analytics",
+            "quiz-builder": "/quizzes/new",
+            "quiz builder": "/quizzes/new",
+            "new quiz": "/quizzes/new",
+          };
+          const page = params.page?.toLowerCase() || "";
+          const path = pageMap[page] || "/dashboard";
+          return { success: true, message: `Navigating to ${page || "dashboard"}`, data: { navigateTo: path } };
+
+        } else if (intent === "help") {
+          return {
+            success: true,
+            message: "Here's what I can do for you:\n\n" +
+              "**Courses:** Create, list, delete courses\n" +
+              "**Quizzes:** Create quizzes with AI-generated questions, publish, delete, generate public links\n" +
+              "**Assignments:** Create, list, delete assignments\n" +
+              "**Lectures:** Create, list, delete lectures\n" +
+              "**Analytics:** View dashboard stats, quiz submissions\n" +
+              "**Navigation:** Go to any page (e.g., 'take me to quizzes')\n\n" +
+              "You can combine multiple tasks in one message! For example:\n" +
+              "- 'Create a course called Biology and add a quiz on cell division'\n" +
+              "- 'List all my courses and show analytics'\n" +
+              "- 'Create a course Math 101, add a quiz on algebra, and publish it'",
+          };
+
         } else {
-          result = { success: false, message: "No quizzes found." };
+          return {
+            success: true,
+            message: parsed.message || "I'm not sure what you need. Try saying things like:\n- 'Create a course called Biology 101'\n- 'Create a course and add a quiz on photosynthesis'\n- 'Publish my latest quiz'\n- 'Show my analytics'",
+          };
         }
+      };
 
-      } else if (intent === "view_analytics") {
-        const stats = await storage.getDashboardStats(userId);
-        result = { success: true, message: "Here are your analytics", data: { stats } };
-
-      } else if (intent === "navigate") {
-        const pageMap: Record<string, string> = {
-          dashboard: "/dashboard",
-          courses: "/courses",
-          quizzes: "/quizzes",
-          assignments: "/assignments",
-          lectures: "/lectures",
-          analytics: "/analytics",
-          "quiz-builder": "/quizzes/new",
-          "quiz builder": "/quizzes/new",
-          "new quiz": "/quizzes/new",
-        };
-        const page = params.page?.toLowerCase() || "";
-        const path = pageMap[page] || "/dashboard";
-        result = { success: true, message: `Navigating to ${page || "dashboard"}`, data: { navigateTo: path } };
-
-      } else if (intent === "help") {
-        result = {
-          success: true,
-          message: "Here's what I can do for you:\n\n" +
-            "**Courses:** Create, list, delete courses\n" +
-            "**Quizzes:** Create, publish, delete quizzes; generate public links\n" +
-            "**Assignments:** Create, list, delete assignments\n" +
-            "**Lectures:** Create, list, delete lectures\n" +
-            "**Analytics:** View dashboard stats, quiz submissions\n" +
-            "**Navigation:** Go to any page (e.g., 'take me to quizzes')\n\n" +
-            "Just describe what you want in plain language!",
-        };
-
-      } else {
-        result = {
-          success: true,
-          message: parsed.message || "I'm not sure what you need. Try saying things like:\n- 'Create a course called Biology 101'\n- 'Publish my latest quiz'\n- 'Show my analytics'\n- 'Take me to the quiz builder'",
-        };
+      const taskResults: Array<{ intent: string; result: { success: boolean; message: string; data?: any } }> = [];
+      let lastCreatedCourseName: string | null = null;
+      
+      for (const task of parsed.tasks) {
+        const taskParams = { ...(task.parameters || {}) };
+        if (lastCreatedCourseName && !taskParams.courseName && !taskParams.course) {
+          if (["create_quiz", "create_assignment", "create_lecture"].includes(task.intent)) {
+            taskParams.courseName = lastCreatedCourseName;
+          }
+        }
+        const taskResult = await executeTask(task.intent, taskParams);
+        taskResults.push({ intent: task.intent, result: taskResult });
+        if (task.intent === "create_course" && taskResult.success && taskResult.data?.course) {
+          lastCreatedCourseName = taskResult.data.course.name;
+        }
       }
+
+      const allSucceeded = taskResults.every(t => t.result.success);
+      const combinedMessage = taskResults.map((t, i) => {
+        const prefix = parsed.tasks.length > 1 ? `${i + 1}. ` : "";
+        return `${prefix}${t.result.message}`;
+      }).join("\n");
+
+      const combinedData: any = {};
+      for (const t of taskResults) {
+        if (t.result.data) {
+          Object.assign(combinedData, t.result.data);
+        }
+      }
+
+      const result = {
+        success: allSucceeded || taskResults.some(t => t.result.success),
+        message: combinedMessage,
+        data: Object.keys(combinedData).length > 0 ? combinedData : undefined,
+        taskResults,
+      };
       
       await storage.updateChatCommand(chatCommand.id, {
-        intent: parsed.intent,
-        parameters: parsed.parameters,
+        intent: parsed.tasks.map(t => t.intent).join("+"),
+        parameters: parsed.tasks.map(t => t.parameters),
         status: result.success ? "completed" : "failed",
         result,
         completedAt: new Date(),
