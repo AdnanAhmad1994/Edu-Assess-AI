@@ -184,6 +184,16 @@ export const publicQuizSubmissions = pgTable("public_quiz_submissions", {
   ipAddress: text("ip_address"),
 });
 
+// Password Reset Tokens
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  token: varchar("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // Chat Commands (for agentic chatbot)
 export const chatCommands = pgTable("chat_commands", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -277,6 +287,7 @@ export const insertQuizSubmissionSchema = createInsertSchema(quizSubmissions).om
 export const insertAssignmentSubmissionSchema = createInsertSchema(assignmentSubmissions).omit({ id: true });
 export const insertProctoringViolationSchema = createInsertSchema(proctoringViolations).omit({ id: true, timestamp: true });
 export const insertPublicQuizSubmissionSchema = createInsertSchema(publicQuizSubmissions).omit({ id: true, startedAt: true });
+export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({ id: true, createdAt: true });
 export const insertChatCommandSchema = createInsertSchema(chatCommands).omit({ id: true, createdAt: true });
 
 // Types
@@ -304,6 +315,8 @@ export type ProctoringViolation = typeof proctoringViolations.$inferSelect;
 export type InsertProctoringViolation = z.infer<typeof insertProctoringViolationSchema>;
 export type PublicQuizSubmission = typeof publicQuizSubmissions.$inferSelect;
 export type InsertPublicQuizSubmission = z.infer<typeof insertPublicQuizSubmissionSchema>;
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
 export type ChatCommand = typeof chatCommands.$inferSelect;
 export type InsertChatCommand = z.infer<typeof insertChatCommandSchema>;
 

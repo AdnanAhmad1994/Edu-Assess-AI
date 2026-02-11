@@ -11,6 +11,7 @@ import {
   type AssignmentSubmission, type InsertAssignmentSubmission,
   type ProctoringViolation, type InsertProctoringViolation,
   type PublicQuizSubmission, type InsertPublicQuizSubmission,
+  type PasswordResetToken, type InsertPasswordResetToken,
   type ChatCommand, type InsertChatCommand,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
@@ -101,6 +102,11 @@ export interface IStorage {
   createChatCommand(command: InsertChatCommand): Promise<ChatCommand>;
   updateChatCommand(id: string, command: Partial<ChatCommand>): Promise<ChatCommand | undefined>;
   
+  // Password Reset Tokens
+  createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<PasswordResetToken>;
+  getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined>;
+  markPasswordResetTokenUsed(token: string): Promise<void>;
+
   // Stats
   getDashboardStats(instructorId: string): Promise<{
     totalCourses: number;
@@ -126,6 +132,7 @@ export class MemStorage implements IStorage {
   private proctoringViolations: Map<string, ProctoringViolation> = new Map();
   private publicQuizSubmissions: Map<string, PublicQuizSubmission> = new Map();
   private chatCommands: Map<string, ChatCommand> = new Map();
+  private passwordResetTokens: Map<string, PasswordResetToken> = new Map();
 
   // Users
   async getUser(id: string): Promise<User | undefined> {
@@ -700,6 +707,31 @@ export class MemStorage implements IStorage {
     const updated = { ...command, ...data };
     this.chatCommands.set(id, updated);
     return updated;
+  }
+
+  async createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<PasswordResetToken> {
+    const id = randomUUID();
+    const resetToken: PasswordResetToken = {
+      id,
+      userId,
+      token,
+      expiresAt,
+      used: false,
+      createdAt: new Date(),
+    };
+    this.passwordResetTokens.set(token, resetToken);
+    return resetToken;
+  }
+
+  async getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined> {
+    return this.passwordResetTokens.get(token);
+  }
+
+  async markPasswordResetTokenUsed(token: string): Promise<void> {
+    const resetToken = this.passwordResetTokens.get(token);
+    if (resetToken) {
+      this.passwordResetTokens.set(token, { ...resetToken, used: true });
+    }
   }
 }
 
