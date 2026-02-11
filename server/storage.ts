@@ -19,10 +19,12 @@ import { randomUUID } from "crypto";
 export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
+  getUsers(role?: string): Promise<User[]>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, data: Partial<User>): Promise<User | undefined>;
+  deleteUser(id: string): Promise<void>;
   
   // Courses
   getCourses(instructorId?: string): Promise<Course[]>;
@@ -139,6 +141,12 @@ export class MemStorage implements IStorage {
     return this.users.get(id);
   }
 
+  async getUsers(role?: string): Promise<User[]> {
+    const allUsers = Array.from(this.users.values());
+    if (role) return allUsers.filter(u => u.role === role);
+    return allUsers;
+  }
+
   async getUserByUsername(username: string): Promise<User | undefined> {
     return Array.from(this.users.values()).find(u => u.username === username);
   }
@@ -168,6 +176,10 @@ export class MemStorage implements IStorage {
     const updated = { ...user, ...data, id };
     this.users.set(id, updated);
     return updated;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    this.users.delete(id);
   }
 
   // Courses

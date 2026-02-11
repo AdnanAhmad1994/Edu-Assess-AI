@@ -26,6 +26,7 @@ import SettingsPage from "@/pages/settings";
 import ForgotPasswordPage from "@/pages/forgot-password";
 import ForgotUsernamePage from "@/pages/forgot-username";
 import ResetPasswordPage from "@/pages/reset-password";
+import UsersPage from "@/pages/users";
 import Chatbot from "@/components/Chatbot";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -156,6 +157,11 @@ function Router() {
       <Route path="/lectures">
         <AuthenticatedLayout>
           <ProtectedRoute component={LecturesPage} />
+        </AuthenticatedLayout>
+      </Route>
+      <Route path="/users">
+        <AuthenticatedLayout>
+          <ProtectedRoute component={UsersPage} />
         </AuthenticatedLayout>
       </Route>
       <Route path="/settings">

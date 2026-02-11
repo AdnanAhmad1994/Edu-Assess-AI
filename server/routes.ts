@@ -61,6 +61,17 @@ async function requireInstructor(req: Request, res: Response, next: NextFunction
   next();
 }
 
+async function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  const user = await storage.getUser(req.session.userId);
+  if (!user || user.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  next();
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -231,6 +242,92 @@ export async function registerRoutes(
     }
     const { password: _, geminiApiKey: _k, patternHash: _ph, ...userWithoutSensitive } = user;
     res.json({ ...userWithoutSensitive, hasGeminiKey: !!user.geminiApiKey, hasPattern: !!user.patternHash });
+  });
+
+  // Admin - User Management
+  app.get("/api/users", requireAdmin, async (req, res) => {
+    try {
+      const role = req.query.role as string | undefined;
+      const users = await storage.getUsers(role);
+      const sanitized = users.map(u => {
+        const { password, patternHash, geminiApiKey, ...safe } = u;
+        return safe;
+      });
+      res.json(sanitized);
+    } catch (error) {
+      console.error("Get users error:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.post("/api/users", requireAdmin, async (req, res) => {
+    try {
+      const data = insertUserSchema.parse(req.body);
+
+      const existingUsername = await storage.getUserByUsername(data.username);
+      if (existingUsername) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+
+      const existingEmail = await storage.getUserByEmail(data.email);
+      if (existingEmail) {
+        return res.status(400).json({ error: "Email already exists" });
+      }
+
+      const hashedPassword = await bcrypt.hash(data.password, 10);
+      const user = await storage.createUser({ ...data, password: hashedPassword });
+      const { password: _, patternHash: _ph, geminiApiKey: _gk, ...userSafe } = user;
+      res.status(201).json(userSafe);
+    } catch (error) {
+      console.error("Create user error:", error);
+      res.status(400).json({ error: "Invalid user data" });
+    }
+  });
+
+  app.patch("/api/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existing = await storage.getUser(id);
+      if (!existing) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const updates: Partial<User> = {};
+      if (req.body.name) updates.name = req.body.name;
+      if (req.body.email) updates.email = req.body.email;
+      if (req.body.role) updates.role = req.body.role;
+      if (req.body.password) {
+        updates.password = await bcrypt.hash(req.body.password, 10);
+      }
+
+      const updated = await storage.updateUser(id, updates);
+      if (!updated) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      const { password: _, patternHash: _ph, geminiApiKey: _gk, ...userSafe } = updated;
+      res.json(userSafe);
+    } catch (error) {
+      console.error("Update user error:", error);
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+
+  app.delete("/api/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      if (id === req.session.userId) {
+        return res.status(400).json({ error: "Cannot delete your own account" });
+      }
+      const existing = await storage.getUser(id);
+      if (!existing) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      await storage.deleteUser(id);
+      res.json({ message: "User deleted successfully" });
+    } catch (error) {
+      console.error("Delete user error:", error);
+      res.status(500).json({ error: "Failed to delete user" });
+    }
   });
 
   // Settings - Gemini API Key
