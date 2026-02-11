@@ -143,13 +143,17 @@ export async function registerRoutes(
 
       const user = await storage.getUserByEmail(email.trim().toLowerCase());
       if (user) {
-        const token = crypto.randomBytes(32).toString("hex");
-        const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
-        await storage.createPasswordResetToken(user.id, token, expiresAt);
+        try {
+          const token = crypto.randomBytes(32).toString("hex");
+          const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+          await storage.createPasswordResetToken(user.id, token, expiresAt);
 
-        const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
-        const resetUrl = `${baseUrl}/reset-password/${token}`;
-        await sendPasswordResetEmail(user.email, resetUrl, user.name);
+          const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+          const resetUrl = `${baseUrl}/reset-password/${token}`;
+          await sendPasswordResetEmail(user.email, resetUrl, user.name);
+        } catch (emailErr) {
+          console.error("Failed to send password reset email:", emailErr);
+        }
       }
 
       res.json({ message: "If an account with that email exists, a password reset link has been sent." });
@@ -203,7 +207,11 @@ export async function registerRoutes(
 
       const user = await storage.getUserByEmail(email.trim().toLowerCase());
       if (user) {
-        await sendUsernameReminderEmail(user.email, user.username, user.name);
+        try {
+          await sendUsernameReminderEmail(user.email, user.username, user.name);
+        } catch (emailErr) {
+          console.error("Failed to send username reminder email:", emailErr);
+        }
       }
 
       res.json({ message: "If an account with that email exists, your username has been sent." });

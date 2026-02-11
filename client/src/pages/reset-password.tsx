@@ -43,7 +43,15 @@ export default function ResetPasswordPage() {
       });
       setStatus("success");
     } catch (error: any) {
-      const message = error?.message || "Failed to reset password. The link may be invalid or expired.";
+      let message = "Failed to reset password. The link may be invalid or expired.";
+      try {
+        const raw = error?.message || "";
+        const jsonPart = raw.includes("{") ? raw.substring(raw.indexOf("{")) : "";
+        if (jsonPart) {
+          const parsed = JSON.parse(jsonPart);
+          if (parsed.error) message = parsed.error;
+        }
+      } catch {}
       setErrorMessage(message);
       setStatus("error");
     } finally {
