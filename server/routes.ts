@@ -23,13 +23,23 @@ declare module "express-session" {
   }
 }
 
-const ai = new GoogleGenAI({
+const platformAi = new GoogleGenAI({
   apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
   httpOptions: {
     apiVersion: "",
     baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
   },
 });
+
+async function getAiClient(userId?: string): Promise<GoogleGenAI> {
+  if (userId) {
+    const user = await storage.getUser(userId);
+    if (user?.geminiApiKey) {
+      return new GoogleGenAI({ apiKey: user.geminiApiKey });
+    }
+  }
+  return platformAi;
+}
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
@@ -130,8 +140,57 @@ export async function registerRoutes(
     if (!user) {
       return res.status(401).json({ error: "User not found" });
     }
-    const { password: _, ...userWithoutPassword } = user;
-    res.json(userWithoutPassword);
+    const { password: _, geminiApiKey: _k, ...userWithoutSensitive } = user;
+    res.json({ ...userWithoutSensitive, hasGeminiKey: !!user.geminiApiKey });
+  });
+
+  // Settings - Gemini API Key
+  app.get("/api/settings/gemini-key", requireInstructor, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      const maskedKey = user.geminiApiKey
+        ? user.geminiApiKey.slice(0, 6) + "..." + user.geminiApiKey.slice(-4)
+        : null;
+      res.json({ hasKey: !!user.geminiApiKey, maskedKey });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+
+  app.put("/api/settings/gemini-key", requireInstructor, async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      if (apiKey !== undefined && apiKey !== null && typeof apiKey !== "string") {
+        return res.status(400).json({ error: "Invalid API key format" });
+      }
+      const updated = await storage.updateUser(req.session.userId!, {
+        geminiApiKey: apiKey || null,
+      });
+      if (!updated) return res.status(404).json({ error: "User not found" });
+      res.json({ success: true, hasKey: !!apiKey });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update API key" });
+    }
+  });
+
+  app.post("/api/settings/test-gemini-key", requireInstructor, async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      if (!apiKey) return res.status(400).json({ error: "API key required" });
+      const testAi = new GoogleGenAI({ apiKey });
+      const response = await testAi.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: "Say hello in one word.",
+      });
+      if (response.text) {
+        res.json({ valid: true, message: "API key is working" });
+      } else {
+        res.json({ valid: false, message: "No response from Gemini" });
+      }
+    } catch (error: any) {
+      res.json({ valid: false, message: error.message || "Invalid API key" });
+    }
   });
 
   // Dashboard
@@ -306,6 +365,7 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Lecture not found" });
       }
 
+      const ai = await getAiClient(req.session.userId);
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: [
@@ -563,6 +623,7 @@ Respond in JSON format:
     try {
       const { content, courseId, numQuestions = 5, difficulty = "mixed" } = req.body;
 
+      const ai = await getAiClient(req.session.userId);
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: [
@@ -626,6 +687,7 @@ Respond in JSON format:
     try {
       const { submissionId, imageData } = req.body;
 
+      const ai = await getAiClient(req.session.userId);
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: [
@@ -908,6 +970,7 @@ User command: "${command}"
 
 Return only valid JSON, no markdown.`;
 
+      const ai = await getAiClient(userId);
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: intentPrompt,

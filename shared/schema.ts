@@ -22,6 +22,7 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   role: userRoleEnum("role").notNull().default("student"),
   avatarUrl: text("avatar_url"),
+  geminiApiKey: text("gemini_api_key"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 

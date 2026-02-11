@@ -38,11 +38,17 @@ Preferred communication style: Simple, everyday language.
 - **Session Storage**: Configured via express-session
 
 ### AI Integration
-- **Provider**: Google Gemini via Replit AI Integrations
+- **Provider**: Google Gemini via Replit AI Integrations (platform default) or user's own API key
+- **Custom API Key**: Instructors/admins can add their own Gemini API key in Settings (/settings). The system uses the user's key when available, falling back to the platform default.
+- **AI Client Helper**: `getAiClient(userId?)` in routes.ts returns appropriate GoogleGenAI client based on user's stored key
 - **Models**: gemini-2.5-flash (fast), gemini-2.5-pro (advanced), gemini-2.5-flash-image (image generation)
 - **Use Cases**: Quiz question generation, content summarization, AI-based grading, chatbot intent parsing
 - **Batch Processing**: Utility for rate-limited batch AI operations with retry logic
 - **Agentic Chatbot**: AI-powered assistant that can execute app commands via natural language (create quizzes, generate public links, list courses, view analytics)
+- **Settings API Endpoints**:
+  - `GET /api/settings/gemini-key` - Get key status (masked key)
+  - `PUT /api/settings/gemini-key` - Save or remove API key
+  - `POST /api/settings/test-gemini-key` - Validate a key against Gemini API
 
 ### Public Quiz Links
 - **Access Token**: Each quiz can have a public access token for sharing

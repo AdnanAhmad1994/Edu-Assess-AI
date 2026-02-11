@@ -21,6 +21,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, data: Partial<User>): Promise<User | undefined>;
   
   // Courses
   getCourses(instructorId?: string): Promise<Course[]>;
@@ -146,10 +147,19 @@ export class MemStorage implements IStorage {
       id,
       role: insertUser.role ?? "student",
       avatarUrl: insertUser.avatarUrl ?? null,
+      geminiApiKey: insertUser.geminiApiKey ?? null,
       createdAt: new Date(),
     };
     this.users.set(id, user);
     return user;
+  }
+
+  async updateUser(id: string, data: Partial<User>): Promise<User | undefined> {
+    const user = this.users.get(id);
+    if (!user) return undefined;
+    const updated = { ...user, ...data, id };
+    this.users.set(id, updated);
+    return updated;
   }
 
   // Courses

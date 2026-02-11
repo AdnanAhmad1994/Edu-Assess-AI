@@ -22,6 +22,7 @@ import AssignmentsPage from "@/pages/assignments";
 import AnalyticsPage from "@/pages/analytics";
 import LecturesPage from "@/pages/lectures";
 import PublicQuizPage from "@/pages/public-quiz";
+import SettingsPage from "@/pages/settings";
 import Chatbot from "@/components/Chatbot";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -143,6 +144,11 @@ function Router() {
       <Route path="/lectures">
         <AuthenticatedLayout>
           <ProtectedRoute component={LecturesPage} />
+        </AuthenticatedLayout>
+      </Route>
+      <Route path="/settings">
+        <AuthenticatedLayout>
+          <ProtectedRoute component={SettingsPage} />
         </AuthenticatedLayout>
       </Route>
 

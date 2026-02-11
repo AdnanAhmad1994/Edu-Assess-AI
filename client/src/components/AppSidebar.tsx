@@ -38,6 +38,7 @@ const instructorMenuItems = [
   { title: "Lectures", url: "/lectures", icon: FolderOpen },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Students", url: "/students", icon: Users },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 const studentMenuItems = [
