@@ -84,11 +84,11 @@ function InstructorDashboard() {
   });
 
   const { data: recentCourses, isLoading: coursesLoading } = useQuery<Course[]>({
-    queryKey: ["/api/courses", { limit: 3 }],
+    queryKey: ["/api/courses"],
   });
 
   const { data: recentQuizzes, isLoading: quizzesLoading } = useQuery<Quiz[]>({
-    queryKey: ["/api/quizzes", { limit: 5 }],
+    queryKey: ["/api/quizzes"],
   });
 
   if (statsLoading || coursesLoading || quizzesLoading) {
@@ -166,7 +166,7 @@ function InstructorDashboard() {
                   <div
                     key={quiz.id}
                     className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover-elevate cursor-pointer"
-                    onClick={() => setLocation(`/quizzes/${quiz.id}`)}
+                    onClick={() => setLocation(`/quizzes/new?edit=${quiz.id}`)}
                     data-testid={`quiz-item-${quiz.id}`}
                   >
                     <div className="flex items-center gap-3">

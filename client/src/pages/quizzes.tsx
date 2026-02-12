@@ -216,15 +216,9 @@ export default function QuizzesPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setLocation(`/quizzes/${quiz.id}`)}>
+                          <DropdownMenuItem onClick={() => setLocation(`/quizzes/new?edit=${quiz.id}`)}>
                             <Eye className="w-4 h-4 mr-2" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setLocation(`/quizzes/${quiz.id}/edit`)}>
-                            Edit Quiz
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setLocation(`/quizzes/${quiz.id}/questions`)}>
-                            Manage Questions
+                            View / Edit Quiz
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           {quiz.status === "draft" && (
@@ -237,7 +231,7 @@ export default function QuizzesPage() {
                             <Link className="w-4 h-4 mr-2" />
                             {quiz.publicLinkEnabled ? "Manage Public Link" : "Generate Public Link"}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setLocation(`/quizzes/${quiz.id}/submissions`)}>
+                          <DropdownMenuItem onClick={() => setLocation(`/quizzes/new?edit=${quiz.id}`)}>
                             View Submissions
                           </DropdownMenuItem>
                         </DropdownMenuContent>
