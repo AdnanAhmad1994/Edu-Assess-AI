@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
 import { useForm } from "react-hook-form";
@@ -6,12 +6,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/lib/auth-context";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useUpload } from "@/hooks/use-upload";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,8 +33,12 @@ import {
   X,
   AlertCircle,
   Loader2,
+  Image,
+  FileText,
+  File,
+  Eye,
 } from "lucide-react";
-import type { Course, Question, QuestionType } from "@shared/schema";
+import type { Course, Question, QuestionType, Lecture } from "@shared/schema";
 
 const quizSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
@@ -66,6 +72,7 @@ interface QuestionInput {
   correctAnswer: string;
   points: number;
   difficulty: string;
+  imageUrl?: string;
 }
 
 export default function QuizBuilderPage() {
@@ -78,9 +85,20 @@ export default function QuizBuilderPage() {
   const [aiPrompt, setAiPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState(isAIMode ? "ai" : "manual");
+  const [uploadedFile, setUploadedFile] = useState<{ url: string; name: string; type: string } | null>(null);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [quizAttachment, setQuizAttachment] = useState<{ url: string; name: string; type: string } | null>(null);
 
   const { data: courses } = useQuery<Course[]>({
     queryKey: ["/api/courses"],
+  });
+
+  const selectedCourseId = useSearch().includes("courseId=")
+    ? new URLSearchParams(useSearch()).get("courseId")
+    : null;
+
+  const { data: lectures } = useQuery<Lecture[]>({
+    queryKey: ["/api/lectures"],
   });
 
   const form = useForm<QuizFormData>({
@@ -89,7 +107,7 @@ export default function QuizBuilderPage() {
       title: "",
       description: "",
       instructions: "",
-      courseId: "",
+      courseId: selectedCourseId || "",
       timeLimitMinutes: 30,
       passingScore: 60,
       randomizeQuestions: true,
@@ -100,7 +118,7 @@ export default function QuizBuilderPage() {
   });
 
   const createQuizMutation = useMutation({
-    mutationFn: async (data: QuizFormData & { questions: QuestionInput[] }) => {
+    mutationFn: async (data: QuizFormData & { questions: QuestionInput[]; attachmentUrl?: string; attachmentType?: string; attachmentName?: string }) => {
       return apiRequest("POST", "/api/quizzes", data);
     },
     onSuccess: () => {
@@ -135,6 +153,31 @@ export default function QuizBuilderPage() {
     },
     onError: () => {
       toast({ title: "Generation failed", description: "Failed to generate questions.", variant: "destructive" });
+    },
+  });
+
+  const generateFromFileMutation = useMutation({
+    mutationFn: async (data: { fileUrl: string; fileName: string; fileType: string; numQuestions: number; difficulty: string; courseId: string }) => {
+      const res = await apiRequest("POST", "/api/ai/generate-questions-from-file", data);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.questions) {
+        const newQuestions: QuestionInput[] = data.questions.map((q: any, index: number) => ({
+          id: `file-ai-${Date.now()}-${index}`,
+          type: q.type || "mcq",
+          text: q.text,
+          options: q.options || [],
+          correctAnswer: q.correctAnswer || "",
+          points: q.points || 1,
+          difficulty: q.difficulty || "medium",
+        }));
+        setQuestions((prev) => [...prev, ...newQuestions]);
+        toast({ title: "Questions generated from file", description: `Added ${newQuestions.length} AI-generated questions from your uploaded file.` });
+      }
+    },
+    onError: () => {
+      toast({ title: "Generation failed", description: "Failed to generate questions from file.", variant: "destructive" });
     },
   });
 
@@ -179,21 +222,115 @@ export default function QuizBuilderPage() {
     );
   };
 
+  const handleFileUpload = async (file: File, purpose: "question-image" | "generate" | "attachment") => {
+    setIsUploadingFile(true);
+    try {
+      const urlRes = await fetch("/api/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = await urlRes.json();
+
+      await fetch(uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+
+      const fileInfo = { url: objectPath, name: file.name, type: file.type };
+
+      if (purpose === "generate") {
+        setUploadedFile(fileInfo);
+      } else if (purpose === "attachment") {
+        setQuizAttachment(fileInfo);
+      }
+
+      return fileInfo;
+    } catch (error) {
+      toast({ title: "Upload failed", description: "Failed to upload file.", variant: "destructive" });
+      return null;
+    } finally {
+      setIsUploadingFile(false);
+    }
+  };
+
+  const handleGenerateFromFile = () => {
+    const courseId = form.getValues("courseId");
+    if (!courseId) {
+      toast({ title: "Select a course", description: "Please select a course first.", variant: "destructive" });
+      return;
+    }
+    if (!uploadedFile) {
+      toast({ title: "Upload a file", description: "Please upload a document or image first.", variant: "destructive" });
+      return;
+    }
+
+    setIsGenerating(true);
+    generateFromFileMutation.mutate(
+      {
+        fileUrl: uploadedFile.url,
+        fileName: uploadedFile.name,
+        fileType: uploadedFile.type,
+        numQuestions: 5,
+        difficulty: "mixed",
+        courseId,
+      },
+      { onSettled: () => setIsGenerating(false) }
+    );
+  };
+
+  const handleGenerateFromLecture = (lecture: Lecture) => {
+    const courseId = form.getValues("courseId");
+    if (!courseId) {
+      toast({ title: "Select a course", description: "Please select a course first.", variant: "destructive" });
+      return;
+    }
+    if (!lecture.fileUrl) {
+      toast({ title: "No file", description: "This lecture doesn't have an attached file.", variant: "destructive" });
+      return;
+    }
+
+    setIsGenerating(true);
+    generateFromFileMutation.mutate(
+      {
+        fileUrl: lecture.fileUrl,
+        fileName: lecture.title,
+        fileType: lecture.fileType || "application/pdf",
+        numQuestions: 5,
+        difficulty: "mixed",
+        courseId,
+      },
+      { onSettled: () => setIsGenerating(false) }
+    );
+  };
+
   const onSubmit = (data: QuizFormData) => {
     if (questions.length === 0) {
       toast({ title: "Add questions", description: "Please add at least one question.", variant: "destructive" });
       return;
     }
-    createQuizMutation.mutate({ ...data, questions });
+    createQuizMutation.mutate({
+      ...data,
+      questions,
+      ...(quizAttachment ? {
+        attachmentUrl: quizAttachment.url,
+        attachmentType: quizAttachment.type,
+        attachmentName: quizAttachment.name,
+      } : {}),
+    });
   };
+
+  const courseLectures = lectures?.filter((l) => l.courseId === form.watch("courseId") && l.fileUrl) || [];
 
   return (
     <div className="space-y-6 fade-in max-w-4xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Create Quiz</h1>
+          <h1 className="text-3xl font-bold" data-testid="text-page-title">Create Quiz</h1>
           <p className="text-muted-foreground mt-1">
-            Build a new quiz manually or generate questions with AI
+            Build a new quiz manually, generate with AI, or upload files
           </p>
         </div>
         <Button variant="outline" onClick={() => setLocation("/quizzes")}>
@@ -306,6 +443,35 @@ export default function QuizBuilderPage() {
                   )}
                 />
               </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Quiz Attachment (Optional)</label>
+                <p className="text-xs text-muted-foreground">Attach a document or image that students can view while taking the quiz</p>
+                {quizAttachment ? (
+                  <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                    {quizAttachment.type.startsWith("image/") ? (
+                      <Image className="w-5 h-5 text-muted-foreground shrink-0" />
+                    ) : (
+                      <FileText className="w-5 h-5 text-muted-foreground shrink-0" />
+                    )}
+                    <span className="text-sm truncate flex-1">{quizAttachment.name}</span>
+                    {quizAttachment.type.startsWith("image/") && (
+                      <img src={quizAttachment.url} alt="Preview" className="w-16 h-16 object-cover rounded" />
+                    )}
+                    <Button type="button" variant="ghost" size="icon" onClick={() => setQuizAttachment(null)} data-testid="button-remove-quiz-attachment">
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <FileUploadButton
+                    onUpload={(file) => handleFileUpload(file, "attachment")}
+                    isUploading={isUploadingFile}
+                    accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
+                    label="Attach File"
+                    testId="button-attach-quiz-file"
+                  />
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -320,7 +486,7 @@ export default function QuizBuilderPage() {
                   control={form.control}
                   name="randomizeQuestions"
                   render={({ field }) => (
-                    <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                    <FormItem className="flex items-center justify-between gap-2 rounded-lg border p-3">
                       <div className="space-y-0.5">
                         <FormLabel>Randomize Questions</FormLabel>
                         <FormDescription>Shuffle question order for each student</FormDescription>
@@ -336,7 +502,7 @@ export default function QuizBuilderPage() {
                   control={form.control}
                   name="randomizeOptions"
                   render={({ field }) => (
-                    <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                    <FormItem className="flex items-center justify-between gap-2 rounded-lg border p-3">
                       <div className="space-y-0.5">
                         <FormLabel>Randomize Options</FormLabel>
                         <FormDescription>Shuffle MCQ answer options</FormDescription>
@@ -352,7 +518,7 @@ export default function QuizBuilderPage() {
                   control={form.control}
                   name="showResults"
                   render={({ field }) => (
-                    <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                    <FormItem className="flex items-center justify-between gap-2 rounded-lg border p-3">
                       <div className="space-y-0.5">
                         <FormLabel>Show Results</FormLabel>
                         <FormDescription>Allow students to see their score</FormDescription>
@@ -368,7 +534,7 @@ export default function QuizBuilderPage() {
                   control={form.control}
                   name="proctored"
                   render={({ field }) => (
-                    <FormItem className="flex items-center justify-between rounded-lg border p-3 border-primary/30 bg-primary/5">
+                    <FormItem className="flex items-center justify-between gap-2 rounded-lg border p-3 border-primary/30 bg-primary/5">
                       <div className="space-y-0.5">
                         <FormLabel className="flex items-center gap-2">
                           <Shield className="w-4 h-4 text-primary" />
@@ -393,7 +559,7 @@ export default function QuizBuilderPage() {
                 Questions
                 <Badge variant="secondary">{questions.length}</Badge>
               </CardTitle>
-              <CardDescription>Add questions manually or generate with AI</CardDescription>
+              <CardDescription>Add questions manually, generate with AI, or upload files for AI analysis</CardDescription>
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -406,6 +572,16 @@ export default function QuizBuilderPage() {
                     <Brain className="w-4 h-4 mr-2" />
                     AI Generate
                   </TabsTrigger>
+                  <TabsTrigger value="file" data-testid="tab-file-questions">
+                    <Upload className="w-4 h-4 mr-2" />
+                    From File
+                  </TabsTrigger>
+                  {courseLectures.length > 0 && (
+                    <TabsTrigger value="lecture" data-testid="tab-lecture-questions">
+                      <FileText className="w-4 h-4 mr-2" />
+                      From Lecture
+                    </TabsTrigger>
+                  )}
                 </TabsList>
 
                 <TabsContent value="ai" className="space-y-4">
@@ -449,6 +625,121 @@ export default function QuizBuilderPage() {
                   </div>
                 </TabsContent>
 
+                <TabsContent value="file" className="space-y-4">
+                  <div className="rounded-lg border border-dashed border-primary/50 bg-primary/5 p-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center shrink-0">
+                        <Upload className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold mb-1">Generate from File</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Upload a PDF, document, or image. AI will analyze its content and generate relevant quiz questions.
+                        </p>
+
+                        {uploadedFile ? (
+                          <div className="space-y-4">
+                            <div className="flex items-center gap-3 p-3 rounded-lg border bg-background">
+                              {uploadedFile.type.startsWith("image/") ? (
+                                <div className="shrink-0">
+                                  <img src={uploadedFile.url} alt="Uploaded" className="w-20 h-20 object-cover rounded-lg" />
+                                </div>
+                              ) : (
+                                <FileText className="w-10 h-10 text-primary shrink-0" />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{uploadedFile.name}</p>
+                                <p className="text-xs text-muted-foreground">{uploadedFile.type}</p>
+                              </div>
+                              <Button type="button" variant="ghost" size="icon" onClick={() => setUploadedFile(null)} data-testid="button-remove-uploaded-file">
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+
+                            <Button
+                              type="button"
+                              onClick={handleGenerateFromFile}
+                              disabled={isGenerating}
+                              data-testid="button-generate-from-file"
+                            >
+                              {isGenerating ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Analyzing & Generating...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="w-4 h-4 mr-2" />
+                                  Generate Questions from File
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        ) : (
+                          <FileUploadButton
+                            onUpload={(file) => handleFileUpload(file, "generate")}
+                            isUploading={isUploadingFile}
+                            accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
+                            label="Upload File or Image"
+                            testId="button-upload-file-for-generation"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {courseLectures.length > 0 && (
+                  <TabsContent value="lecture" className="space-y-4">
+                    <div className="rounded-lg border border-dashed border-primary/50 bg-primary/5 p-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center shrink-0">
+                          <FileText className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold mb-1">Generate from Lecture</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Select an existing lecture file from this course. AI will analyze it and generate quiz questions.
+                          </p>
+
+                          <div className="space-y-2">
+                            {courseLectures.map((lecture) => (
+                              <div
+                                key={lecture.id}
+                                className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-background"
+                              >
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <FileText className="w-5 h-5 text-muted-foreground shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium truncate">{lecture.title}</p>
+                                    <p className="text-xs text-muted-foreground">{lecture.fileType || "Document"}</p>
+                                  </div>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => handleGenerateFromLecture(lecture)}
+                                  disabled={isGenerating}
+                                  data-testid={`button-generate-from-lecture-${lecture.id}`}
+                                >
+                                  {isGenerating ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Sparkles className="w-4 h-4 mr-1" />
+                                      Generate
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+                )}
+
                 <TabsContent value="manual">
                   <Button type="button" variant="outline" onClick={addQuestion} className="w-full" data-testid="button-add-question">
                     <Plus className="w-4 h-4 mr-2" />
@@ -467,6 +758,8 @@ export default function QuizBuilderPage() {
                       question={question}
                       onUpdate={(updates) => updateQuestion(question.id, updates)}
                       onRemove={() => removeQuestion(question.id)}
+                      onImageUpload={handleFileUpload}
+                      isUploading={isUploadingFile}
                     />
                   ))}
                 </div>
@@ -488,22 +781,90 @@ export default function QuizBuilderPage() {
   );
 }
 
+function FileUploadButton({
+  onUpload,
+  isUploading,
+  accept,
+  label,
+  testId,
+}: {
+  onUpload: (file: File) => Promise<any>;
+  isUploading: boolean;
+  accept: string;
+  label: string;
+  testId: string;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={accept}
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            onUpload(file);
+            e.target.value = "";
+          }
+        }}
+        data-testid={`${testId}-input`}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={isUploading}
+        className="gap-2"
+        data-testid={testId}
+      >
+        {isUploading ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Uploading...
+          </>
+        ) : (
+          <>
+            <Upload className="w-4 h-4" />
+            {label}
+          </>
+        )}
+      </Button>
+    </>
+  );
+}
+
 function QuestionEditor({
   index,
   question,
   onUpdate,
   onRemove,
+  onImageUpload,
+  isUploading,
 }: {
   index: number;
   question: QuestionInput;
   onUpdate: (updates: Partial<QuestionInput>) => void;
   onRemove: () => void;
+  onImageUpload: (file: File, purpose: "question-image" | "generate" | "attachment") => Promise<any>;
+  isUploading: boolean;
 }) {
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = async (file: File) => {
+    const result = await onImageUpload(file, "question-image");
+    if (result) {
+      onUpdate({ imageUrl: result.url });
+    }
+  };
+
   return (
     <Card className="relative" data-testid={`question-editor-${index}`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
               {index + 1}
             </div>
@@ -553,6 +914,72 @@ function QuestionEditor({
           className="min-h-[80px]"
           data-testid={`question-text-${index}`}
         />
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium flex items-center gap-2">
+              <Image className="w-4 h-4" />
+              Question Image (Optional)
+            </label>
+          </div>
+          {question.imageUrl ? (
+            <div className="relative inline-block">
+              <img
+                src={question.imageUrl}
+                alt="Question attachment"
+                className="max-w-xs max-h-48 rounded-lg border object-contain"
+                data-testid={`question-image-preview-${index}`}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                className="absolute top-1 right-1"
+                onClick={() => onUpdate({ imageUrl: undefined })}
+                data-testid={`remove-question-image-${index}`}
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            </div>
+          ) : (
+            <>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleImageUpload(file);
+                    e.target.value = "";
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={isUploading}
+                className="gap-2"
+                data-testid={`upload-question-image-${index}`}
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Image className="w-3 h-3" />
+                    Add Image
+                  </>
+                )}
+              </Button>
+            </>
+          )}
+        </div>
 
         {(question.type === "mcq" || question.type === "matching") && (
           <div className="space-y-2">

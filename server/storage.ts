@@ -289,6 +289,7 @@ export class MemStorage implements IStorage {
       explanation: insertQuestion.explanation ?? null,
       points: insertQuestion.points ?? 1,
       tags: insertQuestion.tags ?? null,
+      imageUrl: insertQuestion.imageUrl ?? null,
       aiGenerated: insertQuestion.aiGenerated ?? false,
       createdAt: new Date(),
     };
@@ -342,6 +343,9 @@ export class MemStorage implements IStorage {
       randomizeOptions: insertQuiz.randomizeOptions ?? true,
       showResults: insertQuiz.showResults ?? true,
       proctored: insertQuiz.proctored ?? false,
+      attachmentUrl: insertQuiz.attachmentUrl ?? null,
+      attachmentType: insertQuiz.attachmentType ?? null,
+      attachmentName: insertQuiz.attachmentName ?? null,
       status: insertQuiz.status ?? "draft",
       startDate: insertQuiz.startDate ?? null,
       endDate: insertQuiz.endDate ?? null,

@@ -18,6 +18,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { sendPasswordResetEmail, sendUsernameReminderEmail } from "./email";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 declare module "express-session" {
   interface SessionData {
@@ -89,6 +90,8 @@ export async function registerRoutes(
       },
     })
   );
+
+  registerObjectStorageRoutes(app);
 
   // Seed default admin account if none exists
   const existingAdmin = await storage.getUserByUsername("admin");
@@ -724,7 +727,8 @@ Respond in JSON format:
             correctAnswer: q.correctAnswer,
             points: q.points || 1,
             difficulty: q.difficulty || "medium",
-            aiGenerated: q.id?.startsWith("ai-") || false,
+            aiGenerated: q.id?.startsWith("ai-") || q.id?.startsWith("file-ai-") || false,
+            imageUrl: q.imageUrl || null,
           });
           
           await storage.addQuizQuestion({
@@ -768,6 +772,7 @@ Respond in JSON format:
         text: qq.question.text,
         options: qq.question.options,
         points: qq.question.points,
+        imageUrl: qq.question.imageUrl || null,
       }));
       
       if (quiz.randomizeQuestions) {
@@ -936,6 +941,105 @@ Respond in JSON format:
     } catch (error) {
       console.error("Generate questions error:", error);
       res.status(500).json({ error: "Failed to generate questions" });
+    }
+  });
+
+  app.post("/api/ai/generate-questions-from-file", requireInstructor, async (req, res) => {
+    try {
+      const { fileUrl, fileName, fileType, numQuestions = 5, difficulty = "mixed", courseId } = req.body;
+
+      if (!fileUrl) {
+        return res.status(400).json({ error: "File URL is required" });
+      }
+
+      const ai = await getAiClient(req.session.userId);
+
+      const isImage = fileType?.startsWith("image/");
+
+      let parts: any[] = [];
+
+      if (isImage) {
+        const response = await fetch(fileUrl.startsWith("/") ? `${req.protocol}://${req.get("host")}${fileUrl}` : fileUrl);
+        const buffer = await response.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString("base64");
+        parts = [
+          {
+            inlineData: {
+              mimeType: fileType || "image/jpeg",
+              data: base64,
+            },
+          },
+          {
+            text: `Analyze this image and generate ${numQuestions} quiz questions based on its content.
+Mix question types (multiple choice, true/false, short answer, fill in the blank).
+Difficulty level: ${difficulty}
+
+Respond in JSON format:
+{
+  "questions": [
+    {
+      "type": "mcq" | "true_false" | "short_answer" | "fill_blank",
+      "text": "Question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"] (for MCQ only),
+      "correctAnswer": "The correct answer",
+      "difficulty": "easy" | "medium" | "hard",
+      "points": 1-3
+    }
+  ]
+}`,
+          },
+        ];
+      } else {
+        const response = await fetch(fileUrl.startsWith("/") ? `${req.protocol}://${req.get("host")}${fileUrl}` : fileUrl);
+        const buffer = await response.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString("base64");
+        const mimeType = fileType || "application/pdf";
+        parts = [
+          {
+            inlineData: {
+              mimeType,
+              data: base64,
+            },
+          },
+          {
+            text: `Analyze this document (${fileName || "uploaded file"}) and generate ${numQuestions} quiz questions based on its content.
+Extract key concepts, facts, and important details from the document.
+Mix question types (multiple choice, true/false, short answer, fill in the blank).
+Difficulty level: ${difficulty}
+
+Respond in JSON format:
+{
+  "questions": [
+    {
+      "type": "mcq" | "true_false" | "short_answer" | "fill_blank",
+      "text": "Question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"] (for MCQ only),
+      "correctAnswer": "The correct answer",
+      "difficulty": "easy" | "medium" | "hard",
+      "points": 1-3
+    }
+  ]
+}`,
+          },
+        ];
+      }
+
+      const aiResponse = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [{ role: "user", parts }],
+      });
+
+      const text = aiResponse.text || "";
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        res.json(parsed);
+      } else {
+        res.status(500).json({ error: "Failed to parse AI response" });
+      }
+    } catch (error) {
+      console.error("Generate from file error:", error);
+      res.status(500).json({ error: "Failed to generate questions from file" });
     }
   });
 

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { DocumentViewer, InlineImageViewer } from "@/components/DocumentViewer";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,11 +37,14 @@ import {
   Copy,
   ExternalLink,
   Loader2,
+  FileText,
+  PanelRightOpen,
+  PanelRightClose,
 } from "lucide-react";
 import type { Quiz, Question } from "@shared/schema";
 
 interface QuizWithQuestions extends Quiz {
-  questions: Question[];
+  questions: (Question & { imageUrl?: string | null })[];
 }
 
 interface Answer {
@@ -65,6 +69,7 @@ export default function QuizTakePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [showDocViewer, setShowDocViewer] = useState(false);
 
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [violations, setViolations] = useState<ViolationEvent[]>([]);
@@ -297,13 +302,14 @@ export default function QuizTakePage() {
 
   const questions = quiz.questions || [];
   const currentQ = questions[currentQuestion];
-  const progress = ((currentQuestion + 1) / questions.length) * 100;
+  const progressValue = ((currentQuestion + 1) / questions.length) * 100;
   const answeredCount = Object.keys(answers).length;
+  const hasAttachment = quiz.attachmentUrl && quiz.attachmentName;
 
   return (
     <div className="min-h-screen bg-background">
       <div className="sticky top-0 z-50 bg-card border-b shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-3">
+        <div className="max-w-6xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <h1 className="font-bold text-lg truncate">{quiz.title}</h1>
@@ -316,6 +322,23 @@ export default function QuizTakePage() {
             </div>
 
             <div className="flex items-center gap-4">
+              {hasAttachment && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDocViewer(!showDocViewer)}
+                  className="gap-2"
+                  data-testid="button-toggle-doc-viewer"
+                >
+                  {showDocViewer ? (
+                    <PanelRightClose className="w-4 h-4" />
+                  ) : (
+                    <PanelRightOpen className="w-4 h-4" />
+                  )}
+                  {showDocViewer ? "Hide Document" : "View Document"}
+                </Button>
+              )}
+
               {quiz.proctored && (
                 <div className="flex items-center gap-2">
                   {cameraEnabled ? (
@@ -344,23 +367,30 @@ export default function QuizTakePage() {
               </Badge>
             </div>
           </div>
-          <Progress value={progress} className="mt-3 h-2" />
+          <Progress value={progressValue} className="mt-3 h-2" />
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="flex gap-6">
-          <div className="flex-1 space-y-6">
+          <div className={`flex-1 space-y-6 ${showDocViewer ? "max-w-[50%]" : ""}`}>
             {currentQ && (
               <Card data-testid={`question-${currentQuestion}`}>
                 <CardHeader>
-                  <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                     <Badge variant="outline">Question {currentQuestion + 1} of {questions.length}</Badge>
                     <Badge variant="secondary">{currentQ.points} point{currentQ.points !== 1 ? "s" : ""}</Badge>
                   </div>
                   <CardTitle className="text-xl leading-relaxed">{currentQ.text}</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
+                  {currentQ.imageUrl && (
+                    <InlineImageViewer
+                      url={currentQ.imageUrl}
+                      alt={`Image for question ${currentQuestion + 1}`}
+                    />
+                  )}
+
                   {currentQ.type === "mcq" && currentQ.options && (
                     <RadioGroup
                       value={answers[currentQ.id] || ""}
@@ -461,31 +491,42 @@ export default function QuizTakePage() {
             </div>
           </div>
 
-          {quiz.proctored && (
-            <div className="w-48 shrink-0 space-y-4">
-              <Card className="overflow-hidden">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="w-full aspect-video bg-black"
-                />
-                <canvas ref={canvasRef} className="hidden" />
-              </Card>
+          <div className={`shrink-0 space-y-4 ${showDocViewer ? "w-[45%]" : quiz.proctored ? "w-48" : "w-0"}`}>
+            {showDocViewer && hasAttachment && (
+              <DocumentViewer
+                url={quiz.attachmentUrl!}
+                name={quiz.attachmentName!}
+                type={quiz.attachmentType || "application/pdf"}
+                onClose={() => setShowDocViewer(false)}
+              />
+            )}
 
-              {violations.length > 0 && (
-                <Card className="border-destructive">
-                  <CardHeader className="py-2 px-3">
-                    <CardTitle className="text-sm flex items-center gap-2 text-destructive">
-                      <AlertTriangle className="w-4 h-4" />
-                      Violations ({violations.length})
-                    </CardTitle>
-                  </CardHeader>
+            {quiz.proctored && (
+              <>
+                <Card className="overflow-hidden">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="w-full aspect-video bg-black"
+                  />
+                  <canvas ref={canvasRef} className="hidden" />
                 </Card>
-              )}
-            </div>
-          )}
+
+                {violations.length > 0 && (
+                  <Card className="border-destructive">
+                    <CardHeader className="py-2 px-3">
+                      <CardTitle className="text-sm flex items-center gap-2 text-destructive">
+                        <AlertTriangle className="w-4 h-4" />
+                        Violations ({violations.length})
+                      </CardTitle>
+                    </CardHeader>
+                  </Card>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         <Card className="mt-6">
@@ -498,8 +539,7 @@ export default function QuizTakePage() {
                 <Button
                   key={q.id}
                   variant={currentQuestion === index ? "default" : answers[q.id] ? "secondary" : "outline"}
-                  size="sm"
-                  className="w-10 h-10"
+                  size="icon"
                   onClick={() => setCurrentQuestion(index)}
                   data-testid={`nav-question-${index}`}
                 >

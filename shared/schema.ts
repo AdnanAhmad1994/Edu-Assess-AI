@@ -65,6 +65,7 @@ export const questions = pgTable("questions", {
   explanation: text("explanation"),
   points: integer("points").notNull().default(1),
   tags: jsonb("tags").$type<string[]>(),
+  imageUrl: text("image_url"),
   aiGenerated: boolean("ai_generated").default(false),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
@@ -82,6 +83,9 @@ export const quizzes = pgTable("quizzes", {
   randomizeOptions: boolean("randomize_options").default(true),
   showResults: boolean("show_results").default(true),
   proctored: boolean("proctored").default(false),
+  attachmentUrl: text("attachment_url"),
+  attachmentType: text("attachment_type"),
+  attachmentName: text("attachment_name"),
   status: assessmentStatusEnum("status").notNull().default("draft"),
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
