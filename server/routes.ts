@@ -90,6 +90,20 @@ export async function registerRoutes(
     })
   );
 
+  // Seed default admin account if none exists
+  const existingAdmin = await storage.getUserByUsername("admin");
+  if (!existingAdmin) {
+    const hashedPassword = await bcrypt.hash("admin123", 10);
+    await storage.createUser({
+      username: "admin",
+      password: hashedPassword,
+      email: "admin@eduassess.ai",
+      name: "Administrator",
+      role: "admin",
+    });
+    console.log("Default admin account created (username: admin, password: admin123)");
+  }
+
   // Auth Routes
   app.post("/api/auth/register", async (req, res) => {
     try {
