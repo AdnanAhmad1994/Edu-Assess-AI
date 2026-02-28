@@ -8,3 +8,10 @@ vite.config.ts.*
 .env.local
 .env.production
 .local/
+
+# Security - never commit secrets
+.env
+.env.local
+.env.production
+.env.*.local
+.local/
