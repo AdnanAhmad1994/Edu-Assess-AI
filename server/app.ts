@@ -20,6 +20,9 @@ export async function createApp() {
 
   const app = express();
 
+  // Trust Vercel / reverse-proxy so that secure cookies work correctly over HTTPS
+  app.set("trust proxy", 1);
+
   app.use(
     express.json({
       verify: (req: any, _res, buf) => {

@@ -1,6 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import MemoryStore from "memorystore";
 import { storage } from "./storage";
 import { GoogleGenAI } from "@google/genai";
 import * as XLSX from "xlsx";
@@ -113,14 +115,30 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  // Session store: PostgreSQL when DATABASE_URL is set (production), else in-memory (local dev)
+  let sessionStore: session.Store;
+  if (process.env.DATABASE_URL) {
+    const PgSession = connectPgSimple(session);
+    sessionStore = new PgSession({
+      conString: process.env.DATABASE_URL,
+      tableName: "session",
+      createTableIfMissing: true,
+    });
+  } else {
+    const MStore = MemoryStore(session);
+    sessionStore = new MStore({ checkPeriod: 86400000 });
+  }
+
   app.use(
     session({
-      secret: process.env.SESSION_SECRET || "eduassess-secret-key",
+      secret: process.env.SESSION_SECRET || "eduassess-secret-key-change-in-production",
       resave: false,
       saveUninitialized: false,
+      store: sessionStore,
       cookie: {
         secure: process.env.NODE_ENV === "production",
         httpOnly: true,
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         maxAge: 24 * 60 * 60 * 1000,
       },
     })
