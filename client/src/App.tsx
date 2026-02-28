@@ -18,8 +18,13 @@ import CoursesPage from "@/pages/courses";
 import QuizzesPage from "@/pages/quizzes";
 import QuizBuilderPage from "@/pages/quiz-builder";
 import QuizTakePage from "@/pages/quiz-take";
+import QuizResultsPage from "@/pages/quiz-results";
 import AssignmentsPage from "@/pages/assignments";
+import AssignmentSubmitPage from "@/pages/assignment-submit";
+import AssignmentSubmissionsPage from "@/pages/assignment-submissions";
+import AssignmentGradePage from "@/pages/assignment-grade";
 import AnalyticsPage from "@/pages/analytics";
+import GradebookPage from "@/pages/gradebook";
 import LecturesPage from "@/pages/lectures";
 import PublicQuizPage from "@/pages/public-quiz";
 import SettingsPage from "@/pages/settings";
@@ -27,6 +32,8 @@ import ForgotPasswordPage from "@/pages/forgot-password";
 import ForgotUsernamePage from "@/pages/forgot-username";
 import ResetPasswordPage from "@/pages/reset-password";
 import UsersPage from "@/pages/users";
+import StudentProfilePage from "@/pages/student-profile";
+import ProctoringReviewPage from "@/pages/proctoring-review";
 import Chatbot from "@/components/Chatbot";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -141,8 +148,29 @@ function Router() {
       <Route path="/quiz/:id/take">
         <ProtectedRoute component={QuizTakePage} />
       </Route>
+      <Route path="/quiz/:id/results/:submissionId">
+        <ProtectedRoute component={QuizResultsPage} />
+      </Route>
+      <Route path="/quiz/:id/submissions/:submissionId/proctoring">
+        <AuthenticatedLayout>
+          <ProtectedRoute component={ProctoringReviewPage} />
+        </AuthenticatedLayout>
+      </Route>
       <Route path="/public/quiz/:token">
         <PublicQuizPage />
+      </Route>
+      <Route path="/assignment/:id/submit">
+        <ProtectedRoute component={AssignmentSubmitPage} />
+      </Route>
+      <Route path="/assignments/:id/submissions">
+        <AuthenticatedLayout>
+          <ProtectedRoute component={AssignmentSubmissionsPage} />
+        </AuthenticatedLayout>
+      </Route>
+      <Route path="/assignment-submissions/:id/grade">
+        <AuthenticatedLayout>
+          <ProtectedRoute component={AssignmentGradePage} />
+        </AuthenticatedLayout>
       </Route>
       <Route path="/assignments">
         <AuthenticatedLayout>
@@ -152,6 +180,21 @@ function Router() {
       <Route path="/analytics">
         <AuthenticatedLayout>
           <ProtectedRoute component={AnalyticsPage} />
+        </AuthenticatedLayout>
+      </Route>
+      <Route path="/gradebook">
+        <AuthenticatedLayout>
+          <ProtectedRoute component={GradebookPage} />
+        </AuthenticatedLayout>
+      </Route>
+      <Route path="/students/:id">
+        <AuthenticatedLayout>
+          <ProtectedRoute component={StudentProfilePage} />
+        </AuthenticatedLayout>
+      </Route>
+      <Route path="/my-profile">
+        <AuthenticatedLayout>
+          <ProtectedRoute component={StudentProfilePage} />
         </AuthenticatedLayout>
       </Route>
       <Route path="/lectures">

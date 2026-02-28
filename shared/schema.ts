@@ -13,6 +13,10 @@ export const violationTypeEnum = pgEnum("violation_type", ["tab_switch", "copy_p
 export const publicLinkPermissionEnum = pgEnum("public_link_permission", ["view", "attempt"]);
 export const chatCommandStatusEnum = pgEnum("chat_command_status", ["pending", "executing", "completed", "failed"]);
 
+// Supported AI providers
+export const AI_PROVIDERS = ["gemini", "openai", "openrouter", "grok", "kimi", "anthropic", "custom"] as const;
+export type AiProvider = typeof AI_PROVIDERS[number];
+
 // Users table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -22,7 +26,18 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   role: userRoleEnum("role").notNull().default("student"),
   avatarUrl: text("avatar_url"),
+  // AI provider keys
   geminiApiKey: text("gemini_api_key"),
+  openaiApiKey: text("openai_api_key"),
+  openrouterApiKey: text("openrouter_api_key"),
+  grokApiKey: text("grok_api_key"),
+  kimiApiKey: text("kimi_api_key"),
+  anthropicApiKey: text("anthropic_api_key"),
+  customApiKey: text("custom_api_key"),
+  customApiBaseUrl: text("custom_api_base_url"),
+  customApiModel: text("custom_api_model"),
+  // Which provider is currently active
+  activeAiProvider: text("active_ai_provider").default("gemini"),
   patternHash: text("pattern_hash"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
@@ -83,6 +98,7 @@ export const quizzes = pgTable("quizzes", {
   randomizeOptions: boolean("randomize_options").default(true),
   showResults: boolean("show_results").default(true),
   proctored: boolean("proctored").default(false),
+  violationThreshold: integer("violation_threshold").default(5),
   attachmentUrl: text("attachment_url"),
   attachmentType: text("attachment_type"),
   attachmentName: text("attachment_name"),
@@ -172,6 +188,7 @@ export const proctoringViolations = pgTable("proctoring_violations", {
   screenshotUrl: text("screenshot_url"),
   timestamp: timestamp("timestamp").default(sql`CURRENT_TIMESTAMP`).notNull(),
   reviewed: boolean("reviewed").default(false),
+  reviewNote: text("review_note"),
 });
 
 // Public Quiz Submissions (for anonymous/guest users via public link)

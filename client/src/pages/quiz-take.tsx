@@ -73,6 +73,8 @@ export default function QuizTakePage() {
 
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [violations, setViolations] = useState<ViolationEvent[]>([]);
+  const [showAutoSubmitDialog, setShowAutoSubmitDialog] = useState(false);
+  const violationsRef = useRef<ViolationEvent[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -138,6 +140,27 @@ export default function QuizTakePage() {
   useEffect(() => {
     if (quiz?.proctored && submissionId) {
       initializeProctoring();
+
+      // Request fullscreen for proctored quizzes
+      document.documentElement.requestFullscreen().catch((err) => {
+        console.warn("Fullscreen request failed:", err);
+      });
+
+      const handleFullscreenChange = () => {
+        if (!document.fullscreenElement) {
+          logViolation("suspicious_behavior", "Exited fullscreen mode during exam");
+        }
+      };
+
+      document.addEventListener("fullscreenchange", handleFullscreenChange);
+
+      return () => {
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((track) => track.stop());
+        }
+        document.removeEventListener("fullscreenchange", handleFullscreenChange);
+        document.exitFullscreen().catch(() => {});
+      };
     }
 
     return () => {
@@ -226,8 +249,10 @@ export default function QuizTakePage() {
           if (response.ok) {
             const result = await response.json();
             if (result.violations && result.violations.length > 0) {
+              // Use GCS path returned by server (not raw base64) to avoid huge payloads
+              const screenshotUrl = result.screenshotPath || undefined;
               result.violations.forEach((v: any) => {
-                logViolation(v.type, v.description, imageData);
+                logViolation(v.type, v.description, screenshotUrl);
               });
             }
           }
@@ -243,7 +268,9 @@ export default function QuizTakePage() {
 
   const logViolation = (type: string, description: string, screenshotUrl?: string) => {
     const event: ViolationEvent = { type, description, timestamp: new Date() };
-    setViolations((prev) => [...prev, event]);
+    const newViolations = [...violationsRef.current, event];
+    violationsRef.current = newViolations;
+    setViolations(newViolations);
 
     if (submissionId) {
       logViolationMutation.mutate({ submissionId, type, description, screenshotUrl });
@@ -254,6 +281,12 @@ export default function QuizTakePage() {
       description: description,
       variant: "destructive",
     });
+
+    // Auto-submit if violation threshold exceeded
+    const threshold = (quiz as any)?.violationThreshold ?? 5;
+    if (newViolations.length >= threshold) {
+      setShowAutoSubmitDialog(true);
+    }
   };
 
   const handleAnswerChange = (questionId: string, answer: string) => {
@@ -573,6 +606,34 @@ export default function QuizTakePage() {
               ) : (
                 "Submit Quiz"
               )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Auto-submit dialog triggered when violation threshold is exceeded */}
+      <AlertDialog open={showAutoSubmitDialog} onOpenChange={() => {}}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="w-5 h-5" />
+              Exam Auto-Submitted
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You have exceeded the maximum number of allowed violations (
+              {(quiz as any)?.violationThreshold ?? 5}). Your quiz has been automatically
+              submitted as a security measure. Your current answers have been recorded.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={() => {
+                setShowAutoSubmitDialog(false);
+                handleSubmit();
+              }}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              OK — Submit Now
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

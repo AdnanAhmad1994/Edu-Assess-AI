@@ -59,6 +59,12 @@ export default function AnalyticsPage() {
 
   const { data: analytics, isLoading } = useQuery<AnalyticsData>({
     queryKey: ["/api/analytics", selectedCourse],
+    queryFn: async () => {
+      const courseParam = selectedCourse !== "all" ? `?courseId=${selectedCourse}` : "";
+      const res = await fetch(`/api/analytics${courseParam}`);
+      if (!res.ok) throw new Error("Failed to fetch analytics");
+      return res.json();
+    },
   });
 
   if (isLoading) {
@@ -102,58 +108,17 @@ export default function AnalyticsPage() {
     );
   }
 
-  const mockAnalytics: AnalyticsData = {
-    overview: {
-      totalStudents: 156,
-      averageScore: 78.5,
-      passRate: 85.2,
-      totalSubmissions: 423,
-    },
-    scoreDistribution: [
-      { range: "0-20", count: 5 },
-      { range: "21-40", count: 12 },
-      { range: "41-60", count: 28 },
-      { range: "61-80", count: 65 },
-      { range: "81-100", count: 46 },
-    ],
-    performanceTrend: [
-      { date: "Week 1", average: 72 },
-      { date: "Week 2", average: 75 },
-      { date: "Week 3", average: 78 },
-      { date: "Week 4", average: 76 },
-      { date: "Week 5", average: 82 },
-      { date: "Week 6", average: 79 },
-    ],
-    topPerformers: [
-      { name: "Alice Johnson", score: 98, quizCount: 8 },
-      { name: "Bob Smith", score: 96, quizCount: 8 },
-      { name: "Carol Williams", score: 95, quizCount: 7 },
-      { name: "David Brown", score: 94, quizCount: 8 },
-      { name: "Eva Martinez", score: 93, quizCount: 8 },
-    ],
-    lowPerformers: [
-      { name: "Frank Lee", score: 42, quizCount: 5 },
-      { name: "Grace Kim", score: 48, quizCount: 6 },
-      { name: "Henry Zhang", score: 51, quizCount: 7 },
-      { name: "Ivy Chen", score: 54, quizCount: 6 },
-      { name: "Jack Wilson", score: 56, quizCount: 8 },
-    ],
-    quizStats: [
-      { name: "Quiz 1: Basics", avgScore: 82, submissions: 45, passRate: 91 },
-      { name: "Quiz 2: Intermediate", avgScore: 75, submissions: 44, passRate: 84 },
-      { name: "Quiz 3: Advanced", avgScore: 68, submissions: 42, passRate: 76 },
-      { name: "Midterm", avgScore: 73, submissions: 46, passRate: 82 },
-    ],
-    violationStats: [
-      { type: "Tab Switch", count: 23 },
-      { type: "Copy/Paste", count: 8 },
-      { type: "Multiple Faces", count: 3 },
-      { type: "No Face", count: 12 },
-      { type: "Looking Away", count: 15 },
-    ],
-  };
+  if (!analytics && !isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4 text-muted-foreground">
+        <BarChart3 className="h-16 w-16" />
+        <h2 className="text-xl font-semibold">No Data Yet</h2>
+        <p className="text-sm">Analytics will appear once students start submitting quizzes.</p>
+      </div>
+    );
+  }
 
-  const data = analytics || mockAnalytics;
+  const data = analytics!;
 
   return (
     <div className="space-y-6 fade-in">

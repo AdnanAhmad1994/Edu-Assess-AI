@@ -30,20 +30,22 @@ interface DashboardStats {
   recentSubmissions: number;
 }
 
-function StatCard({ 
-  title, 
-  value, 
-  description, 
-  icon: Icon, 
+function StatCard({
+  title,
+  value,
+  description,
+  icon: Icon,
   trend,
-  color = "primary"
-}: { 
-  title: string; 
-  value: string | number; 
-  description: string; 
+  color = "primary",
+  onClick,
+}: {
+  title: string;
+  value: string | number;
+  description: string;
   icon: any;
   trend?: string;
   color?: "primary" | "accent" | "destructive" | "warning";
+  onClick?: () => void;
 }) {
   const colorClasses = {
     primary: "bg-primary/10 text-primary",
@@ -53,7 +55,10 @@ function StatCard({
   };
 
   return (
-    <Card>
+    <Card
+      className={onClick ? "hover-elevate cursor-pointer transition-shadow" : ""}
+      onClick={onClick}
+    >
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}
@@ -69,6 +74,12 @@ function StatCard({
           <div className="flex items-center gap-1 mt-2 text-xs text-green-600 dark:text-green-400">
             <TrendingUp className="w-3 h-3" />
             {trend}
+          </div>
+        )}
+        {onClick && (
+          <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+            <ArrowRight className="w-3 h-3" />
+            <span>Click to view</span>
           </div>
         )}
       </CardContent>
@@ -123,6 +134,7 @@ function InstructorDashboard() {
           description="Courses you're teaching"
           icon={BookOpen}
           color="primary"
+          onClick={() => setLocation("/courses")}
         />
         <StatCard
           title="Published Quizzes"
@@ -130,6 +142,7 @@ function InstructorDashboard() {
           description="Ready for students"
           icon={FileQuestion}
           color="accent"
+          onClick={() => setLocation("/quizzes")}
         />
         <StatCard
           title="Pending Grading"
@@ -137,6 +150,7 @@ function InstructorDashboard() {
           description="Submissions to review"
           icon={AlertTriangle}
           color="warning"
+          onClick={() => setLocation("/assignments")}
         />
         <StatCard
           title="Students Enrolled"
@@ -144,10 +158,62 @@ function InstructorDashboard() {
           description="Across all courses"
           icon={Users}
           color="primary"
+          onClick={() => setLocation("/analytics")}
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Recent Courses */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <div>
+              <CardTitle>Recent Courses</CardTitle>
+              <CardDescription>Your active courses</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/courses")} data-testid="button-view-all-courses">
+              View All
+              <ArrowRight className="w-4 h-4 ml-1" />
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {recentCourses && recentCourses.length > 0 ? (
+              <div className="space-y-3">
+                {recentCourses.slice(0, 4).map((course) => (
+                  <div
+                    key={course.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover-elevate cursor-pointer"
+                    onClick={() => setLocation("/courses")}
+                    data-testid={`course-item-${course.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <BookOpen className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium truncate max-w-[140px]">{course.name}</p>
+                        <p className="text-xs text-muted-foreground">{course.code} · {course.semester}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={BookOpen}
+                title="No courses yet"
+                description="Create your first course"
+                action={
+                  <Button size="sm" onClick={() => setLocation("/courses")}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Go to Courses
+                  </Button>
+                }
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Quizzes */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <div>
@@ -162,7 +228,7 @@ function InstructorDashboard() {
           <CardContent>
             {recentQuizzes && recentQuizzes.length > 0 ? (
               <div className="space-y-3">
-                {recentQuizzes.map((quiz) => (
+                {recentQuizzes.slice(0, 4).map((quiz) => (
                   <div
                     key={quiz.id}
                     className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover-elevate cursor-pointer"
@@ -174,7 +240,7 @@ function InstructorDashboard() {
                         <FileQuestion className="w-5 h-5 text-primary" />
                       </div>
                       <div>
-                        <p className="font-medium">{quiz.title}</p>
+                        <p className="font-medium truncate max-w-[100px]">{quiz.title}</p>
                         <p className="text-xs text-muted-foreground">
                           {quiz.timeLimitMinutes ? `${quiz.timeLimitMinutes} min` : "No time limit"}
                         </p>
@@ -202,11 +268,12 @@ function InstructorDashboard() {
           </CardContent>
         </Card>
 
+        {/* AI Features */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <div>
               <CardTitle>AI Features</CardTitle>
-              <CardDescription>Powered by Google Gemini</CardDescription>
+              <CardDescription>Powered by Kimi K2 · OpenRouter</CardDescription>
             </div>
           </CardHeader>
           <CardContent>

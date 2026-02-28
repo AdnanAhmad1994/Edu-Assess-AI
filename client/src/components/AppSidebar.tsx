@@ -27,6 +27,8 @@ import {
   Brain,
   FolderOpen,
   Shield,
+  BookMarked,
+  UserCircle,
 } from "lucide-react";
 
 const instructorMenuItems = [
@@ -36,8 +38,9 @@ const instructorMenuItems = [
   { title: "Assignments", url: "/assignments", icon: ClipboardList },
   { title: "Question Bank", url: "/questions", icon: Brain },
   { title: "Lectures", url: "/lectures", icon: FolderOpen },
+  { title: "Gradebook", url: "/gradebook", icon: BookMarked },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
-  { title: "Students", url: "/students", icon: Users },
+  { title: "Students", url: "/users", icon: Users },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
@@ -46,13 +49,14 @@ const studentMenuItems = [
   { title: "My Courses", url: "/courses", icon: BookOpen },
   { title: "Quizzes", url: "/quizzes", icon: FileQuestion },
   { title: "Assignments", url: "/assignments", icon: ClipboardList },
-  { title: "My Results", url: "/results", icon: BarChart3 },
+  { title: "My Profile", url: "/my-profile", icon: UserCircle },
 ];
 
 const adminMenuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Users", url: "/users", icon: Users },
   { title: "Courses", url: "/courses", icon: BookOpen },
+  { title: "Gradebook", url: "/gradebook", icon: BookMarked },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Proctoring Logs", url: "/proctoring", icon: Shield },
   { title: "Settings", url: "/settings", icon: Settings },

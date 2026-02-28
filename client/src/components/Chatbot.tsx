@@ -33,6 +33,7 @@ import {
   Eye,
   PlusCircle,
   Navigation,
+  BookMarked,
 } from "lucide-react";
 import type { ChatCommand } from "@shared/schema";
 
@@ -48,45 +49,56 @@ type PanelSize = "closed" | "compact" | "expanded";
 
 const quickActionGroups = [
   {
-    label: "Multi-Task",
+    label: "Smart Setup",
     icon: Sparkles,
     actions: [
-      { label: "Course + Quiz", command: "Create a course called 'Data Science' and then create a quiz on machine learning fundamentals" },
-      { label: "Full setup", command: "Create a course called 'Web Dev', add a quiz on React.js, and create an assignment on building a todo app" },
-    ],
-  },
-  {
-    label: "Courses",
-    icon: BookOpen,
-    actions: [
-      { label: "Create course", command: "Create a new course called 'Introduction to AI' with code AI101 for Spring 2026" },
-      { label: "List courses", command: "List all my courses" },
+      { label: "Full course setup", command: "Create a course called 'Machine Learning', add a 10-question quiz on neural networks, and create an assignment on building a classifier due in 2 weeks" },
+      { label: "Course + publish quiz", command: "Create a Biology course and add a quiz on cell division with 5 questions, then publish it" },
+      { label: "Ask anything", command: "How many students do I have and which course has the most quizzes?" },
     ],
   },
   {
     label: "Quizzes",
     icon: FileQuestion,
     actions: [
-      { label: "AI Quiz", command: "Create a quiz on artificial intelligence with 5 questions" },
-      { label: "List quizzes", command: "List all my quizzes" },
-      { label: "Publish quiz", command: "Publish my latest quiz" },
-      { label: "Public link", command: "Generate a public link for my quiz" },
+      { label: "AI-generated quiz", command: "Create a 10-question quiz on Python programming with mixed difficulty" },
+      { label: "List all quizzes", command: "List all my quizzes" },
+      { label: "Publish all drafts", command: "Publish all my draft quizzes" },
+      { label: "Share quiz link", command: "Generate a public attempt link for my latest quiz" },
     ],
   },
   {
-    label: "Teaching",
-    icon: GraduationCap,
+    label: "Courses",
+    icon: BookOpen,
     actions: [
-      { label: "Create assignment", command: "Create a new assignment" },
-      { label: "Create lecture", command: "Create a new lecture" },
+      { label: "Create course", command: "Create a course called 'Data Structures' with code DS201 for Fall 2026" },
+      { label: "List courses", command: "List all my courses" },
+    ],
+  },
+  {
+    label: "Students",
+    icon: Users,
+    actions: [
+      { label: "List students", command: "Show me all registered students" },
+      { label: "Enroll student", command: "Enroll a student in a course" },
+      { label: "Student performance", command: "Show performance for a student" },
+      { label: "View gradebook", command: "Show me the gradebook" },
     ],
   },
   {
     label: "Analytics",
     icon: BarChart3,
     actions: [
-      { label: "Dashboard stats", command: "Show my dashboard analytics" },
-      { label: "Quiz results", command: "Show quiz submission results" },
+      { label: "Platform stats", command: "Show my dashboard analytics and stats" },
+      { label: "Quiz submissions", command: "Show all quiz submissions" },
+    ],
+  },
+  {
+    label: "Grading",
+    icon: BookMarked,
+    actions: [
+      { label: "Grade submissions", command: "Show ungraded assignment submissions" },
+      { label: "AI grade all", command: "AI grade all submissions for the latest assignment" },
     ],
   },
 ];
@@ -99,12 +111,7 @@ export default function Chatbot() {
     {
       id: "welcome",
       role: "assistant",
-      content: "Hi! I'm your EduAssess Co-pilot. I can handle multiple tasks at once, just like a real assistant!\n\n" +
-        "- Create courses, quizzes with AI questions, assignments, lectures\n" +
-        "- Publish quizzes, generate public links\n" +
-        "- View analytics, submissions, enrollments\n" +
-        "- Navigate to any page\n\n" +
-        "Try: \"Create a course called AI and then create a quiz on neural networks\"",
+      content: "**Hey! I'm your EduAssess AI Co-pilot** — powered by Kimi K2 via OpenRouter 🧠\n\nI know everything about your platform and can handle any task in natural language. Just tell me what you need:\n\n**💬 Try these:**\n- *\"Create a Biology course and add 10 MCQ questions on DNA replication\"*\n- *\"Set the Midterm Quiz time limit to 45 mins and passing score to 70%\"*\n- *\"Enroll Zara Ahmed in CS Fundamentals\"*\n- *\"How many students are enrolled in my courses?\"*\n- *\"Publish all draft quizzes and generate a public link for the Midterm\"*",
       timestamp: new Date(),
     },
   ]);
@@ -147,7 +154,9 @@ export default function Chatbot() {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/chat/history"] });
 
-      if (responseData.navigateTo) {
+      // Only auto-navigate when there are no submissions/data to display inline
+      // (for submissions, we show them inline and let user click "View" manually)
+      if (responseData.navigateTo && !responseData.submissions) {
         setLocation(responseData.navigateTo);
       }
 
@@ -257,28 +266,6 @@ export default function Chatbot() {
 
     return (
       <>
-        {data.publicUrl && (
-          <div className="mt-2 p-2 bg-background/50 rounded border">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-              <Link className="h-3 w-3" />
-              Public Link:
-            </div>
-            <div className="flex items-center gap-2">
-              <code className="text-xs bg-muted px-2 py-1 rounded flex-1 truncate">
-                {data.publicUrl}
-              </code>
-              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => copyToClipboard(data.publicUrl)}>
-                <Copy className="h-3 w-3" />
-              </Button>
-              <a href={data.publicUrl} target="_blank" rel="noopener noreferrer">
-                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
-                  <ExternalLink className="h-3 w-3" />
-                </Button>
-              </a>
-            </div>
-          </div>
-        )}
-
         {data.quiz && !data.publicUrl && (
           <div className="mt-2 flex items-center gap-2 flex-wrap">
             <Badge variant="secondary" className="text-xs">
@@ -405,14 +392,66 @@ export default function Chatbot() {
 
         {data.submissions && data.submissions.length > 0 && (
           <div className="mt-2 space-y-1">
-            {data.submissions.slice(0, 5).map((s: any) => (
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs text-muted-foreground font-medium">Submissions ({data.submissions.length}):</p>
+              {data.navigateTo && (
+                <button
+                  onClick={() => setLocation(data.navigateTo)}
+                  className="text-xs text-primary hover:underline flex items-center gap-1"
+                >
+                  View all <ExternalLink className="h-2.5 w-2.5" />
+                </button>
+              )}
+            </div>
+            {data.submissions.slice(0, 8).map((s: any) => (
               <div key={s.id} className="flex items-center gap-2 text-xs bg-background/50 p-2 rounded">
-                <Badge variant={s.status === "graded" ? "default" : "secondary"} className="text-xs shrink-0">
-                  {s.status}
+                <User className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span className="font-medium truncate flex-1">{s.studentName || "Unknown"}</span>
+                <Badge variant={s.submissionType === "public" ? "outline" : "secondary"} className="text-xs shrink-0">
+                  {s.submissionType === "public" ? "public" : "enrolled"}
                 </Badge>
-                <span className="truncate">Score: {s.score ?? "N/A"}</span>
+                <span className="text-muted-foreground shrink-0">
+                  {s.percentage != null ? `${s.percentage}%` : s.score != null ? `${s.score}pts` : "in progress"}
+                </span>
               </div>
             ))}
+            {data.submissions.length > 8 && (
+              <p className="text-xs text-muted-foreground">+{data.submissions.length - 8} more...</p>
+            )}
+          </div>
+        )}
+
+        {data.students && data.students.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {data.students.slice(0, 8).map((s: any) => (
+              <div key={s.id} className="text-xs bg-background/50 p-2 rounded flex items-center gap-2">
+                <User className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span className="font-medium">{s.name}</span>
+                <span className="text-muted-foreground truncate">{s.email}</span>
+              </div>
+            ))}
+            {data.students.length > 8 && (
+              <p className="text-xs text-muted-foreground">+{data.students.length - 8} more students...</p>
+            )}
+          </div>
+        )}
+
+        {data.publicUrl && (
+          <div className="mt-2 p-2 bg-background/50 rounded border">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+              <Link className="h-3 w-3" />
+              Public Link (click to copy):
+            </div>
+            <div className="flex items-center gap-2">
+              <code className="text-xs bg-muted px-2 py-1 rounded flex-1 truncate cursor-pointer" onClick={() => navigator.clipboard.writeText(data.publicUrl)}>
+                {data.publicUrl}
+              </code>
+              <a href={data.publicUrl} target="_blank" rel="noopener noreferrer">
+                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+                  <ExternalLink className="h-3 w-3" />
+                </Button>
+              </a>
+            </div>
           </div>
         )}
 
@@ -447,7 +486,7 @@ export default function Chatbot() {
             </div>
             <div>
               <CardTitle className="text-sm">EduAssess Co-pilot</CardTitle>
-              <p className="text-xs text-muted-foreground">Your AI assistant</p>
+              <p className="text-xs text-muted-foreground">Kimi K2 · OpenRouter</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -502,7 +541,12 @@ export default function Chatbot() {
                     : "bg-muted"
                 }`}
               >
-                <p className="whitespace-pre-wrap">{message.content}</p>
+                <div className="whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ __html: message.content
+                  .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                  .replace(/`([^`]+)`/g, '<code class="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-xs font-mono">$1</code>')
+                  .replace(/^(#{1,3})\s(.+)/gm, (_: string, h: string, t: string) => `<strong class="block mt-1">${t}</strong>`)
+                  .replace(/\n/g, '<br/>')
+                }} />
                 {renderMessageData(message.data)}
               </div>
               {message.role === "user" && (
@@ -520,7 +564,7 @@ export default function Chatbot() {
               </div>
               <div className="bg-muted rounded-lg px-3 py-2 text-sm flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Working on it...</span>
+                <span className="text-muted-foreground">Kimi K2 is thinking...</span>
               </div>
             </div>
           )}

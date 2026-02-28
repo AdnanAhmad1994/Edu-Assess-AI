@@ -26,13 +26,27 @@ import {
   Upload,
   FileSpreadsheet,
   Download,
+  Trash2,
+  Pencil,
+  AlertTriangle,
 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { Course } from "@shared/schema";
 
 const courseSchema = z.object({
@@ -50,6 +64,9 @@ export default function CoursesPage() {
   const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Course | null>(null);
+  const [editTarget, setEditTarget] = useState<Course | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: courses, isLoading } = useQuery<Course[]>({
@@ -68,6 +85,36 @@ export default function CoursesPage() {
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to create course.", variant: "destructive" });
+    },
+  });
+
+  const updateCourseMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: CourseFormData }) => {
+      return apiRequest("PUT", `/api/courses/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
+      setIsEditOpen(false);
+      setEditTarget(null);
+      toast({ title: "Course updated", description: "Course has been updated successfully." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update course.", variant: "destructive" });
+    },
+  });
+
+  const deleteCourseMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/courses/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      setDeleteTarget(null);
+      toast({ title: "Course deleted", description: "The course and all its content has been permanently deleted." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete course.", variant: "destructive" });
     },
   });
 
@@ -122,8 +169,34 @@ export default function CoursesPage() {
     },
   });
 
+  const editForm = useForm<CourseFormData>({
+    resolver: zodResolver(courseSchema),
+    defaultValues: {
+      name: "",
+      code: "",
+      description: "",
+      semester: "",
+    },
+  });
+
   const onSubmit = (data: CourseFormData) => {
     createCourseMutation.mutate(data);
+  };
+
+  const openEditDialog = (course: Course) => {
+    setEditTarget(course);
+    editForm.reset({
+      name: course.name,
+      code: course.code,
+      description: course.description || "",
+      semester: course.semester,
+    });
+    setIsEditOpen(true);
+  };
+
+  const onEditSubmit = (data: CourseFormData) => {
+    if (!editTarget) return;
+    updateCourseMutation.mutate({ id: editTarget.id, data });
   };
 
   const isInstructor = user?.role === "instructor" || user?.role === "admin";
@@ -318,19 +391,31 @@ export default function CoursesPage() {
                 {isInstructor && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="shrink-0" data-testid={`course-menu-${course.id}`}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0"
+                        data-testid={`course-menu-${course.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <MoreVertical className="w-4 h-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setLocation(`/courses/${course.id}`)}>
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setLocation(`/courses/${course.id}/edit`)}>
+                      <DropdownMenuItem
+                        onClick={(e) => { e.stopPropagation(); openEditDialog(course); }}
+                      >
+                        <Pencil className="w-4 h-4 mr-2" />
                         Edit Course
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setLocation(`/courses/${course.id}/students`)}>
-                        Manage Students
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(course); }}
+                        data-testid={`course-delete-${course.id}`}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete Course
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -379,6 +464,110 @@ export default function CoursesPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              Delete Course?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>"{deleteTarget?.name}"</strong> and all its quizzes,
+              assignments, lectures, and enrollments. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && deleteCourseMutation.mutate(deleteTarget.id)}
+              disabled={deleteCourseMutation.isPending}
+            >
+              {deleteCourseMutation.isPending ? "Deleting..." : "Delete Course"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Edit Course Dialog ── */}
+      <Dialog open={isEditOpen} onOpenChange={(open) => { if (!open) { setIsEditOpen(false); setEditTarget(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Course</DialogTitle>
+            <DialogDescription>
+              Update the details for "{editTarget?.name}".
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+              <FormField
+                control={editForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Course Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Introduction to Computer Science" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Course Code</FormLabel>
+                      <FormControl>
+                        <Input placeholder="CS101" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="semester"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Semester</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Spring 2026" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={editForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="A brief description of the course..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="outline" onClick={() => { setIsEditOpen(false); setEditTarget(null); }}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={updateCourseMutation.isPending}>
+                  {updateCourseMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

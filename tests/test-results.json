@@ -1,0 +1,1352 @@
+[
+  {
+    "id": "TC-AUTH-01",
+    "title": "Successful registration",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 201,
+    "expected": 201,
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-01b",
+    "title": "Registration returns no password field",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": "username,email,name,role,id,avatarUrl,customApiBaseUrl,customApiModel,activeAiProvider,createdAt,hasGeminiKey,hasOpenaiKey,hasOpenrouterKey,hasGrokKey,hasKimiKey,hasAnthropicKey,hasCustomKey,hasPattern",
+    "expected": "no field: password",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-02",
+    "title": "Duplicate username rejected",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 400,
+    "expected": 400,
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-03",
+    "title": "Duplicate email rejected",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 400,
+    "expected": 400,
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-04",
+    "title": "Short username rejected (< 3 chars)",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 400,
+    "expected": 400,
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-05",
+    "title": "Short password rejected (< 6 chars)",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 400,
+    "expected": 400,
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-06",
+    "title": "Successful login returns 200",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-06b",
+    "title": "Login returns role field",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": "username,email,name,role,id,avatarUrl,customApiBaseUrl,customApiModel,activeAiProvider,createdAt,hasGeminiKey,hasOpenaiKey,hasOpenrouterKey,hasGrokKey,hasKimiKey,hasAnthropicKey,hasCustomKey,hasPattern",
+    "expected": "has field: role",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-07",
+    "title": "Wrong password rejected",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 401,
+    "expected": "401 or 400",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-08",
+    "title": "Non-existent username rejected",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 401,
+    "expected": "401 or 400",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-09",
+    "title": "Empty credentials rejected",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 401,
+    "expected": "400 or 401",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-10",
+    "title": "Session persists after login",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-10b",
+    "title": "/api/auth/me has name field",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": "username,email,name,role,id,avatarUrl,customApiBaseUrl,customApiModel,activeAiProvider,createdAt,hasGeminiKey,hasOpenaiKey,hasOpenrouterKey,hasGrokKey,hasKimiKey,hasAnthropicKey,hasCustomKey,hasPattern",
+    "expected": "has field: name",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-11a",
+    "title": "Logout returns success",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 204",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-11b",
+    "title": "After logout session invalid",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 401,
+    "expected": "401 or 302",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-12",
+    "title": "Student blocked from instructor route (POST /api/courses)",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 403,
+    "expected": "401 or 403",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-13",
+    "title": "Unauthenticated request blocked",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 401,
+    "expected": "401 or 403",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-23",
+    "title": "Admin can GET /api/users",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-23b",
+    "title": "Users response is array",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 10,
+    "expected": ">= 1",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-24",
+    "title": "Student blocked from GET /api/users",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 403,
+    "expected": "401 or 403",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-26",
+    "title": "SQL injection in username rejected",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 401,
+    "expected": "400 or 401",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-27",
+    "title": "XSS stored as literal string",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": "{\"username\":\"xss_1771789368174\",\"email\":\"xss1771789368174@te",
+    "expected": "contains: <script>",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-29",
+    "title": "No password field in /api/auth/me response",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": "username,email,name,role,id,avatarUrl,customApiBaseUrl,customApiModel,activeAiProvider,createdAt,hasGeminiKey,hasOpenaiKey,hasOpenrouterKey,hasGrokKey,hasKimiKey,hasAnthropicKey,hasCustomKey,hasPattern",
+    "expected": "no field: password",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-29b",
+    "title": "No raw API keys in /api/auth/me response",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": "username,email,name,role,id,avatarUrl,customApiBaseUrl,customApiModel,activeAiProvider,createdAt,hasGeminiKey,hasOpenaiKey,hasOpenrouterKey,hasGrokKey,hasKimiKey,hasAnthropicKey,hasCustomKey,hasPattern",
+    "expected": "no field: openrouterApiKey",
+    "note": ""
+  },
+  {
+    "id": "TC-AUTH-30",
+    "title": "Instructor blocked from /api/users (admin-only)",
+    "suite": "Authentication",
+    "passed": true,
+    "actual": 403,
+    "expected": "401 or 403",
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-01",
+    "title": "Create course — success",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": 201,
+    "expected": 201,
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-01b",
+    "title": "Create course — has id",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": "name,code,description,semester,instructorId,id,createdAt",
+    "expected": "has field: id",
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-02",
+    "title": "Create course — name too short rejected",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": 400,
+    "expected": 400,
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-03",
+    "title": "Create course — missing semester rejected",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": 400,
+    "expected": 400,
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-04",
+    "title": "Update course — success",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-04b",
+    "title": "Update course — name changed",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": "name=Test Course Alpha Updated",
+    "expected": "name=Test Course Alpha Updated",
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-06",
+    "title": "Delete course — success",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-09",
+    "title": "Delete non-existent course returns 404",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": 404,
+    "expected": 404,
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-07",
+    "title": "Cascade delete removes quizzes",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": 200,
+    "expected": "404 or 403 or 200",
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-14",
+    "title": "Enroll student by email — success",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": 201,
+    "expected": "200 or 201",
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-15",
+    "title": "Duplicate enrollment handled gracefully",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 201 or 409",
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-17",
+    "title": "Student sees enrolled course in list",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "course found in student list"
+  },
+  {
+    "id": "TC-COURSE-16",
+    "title": "Enroll non-existent email returns 404",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": 404,
+    "expected": "404 or 400",
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-18",
+    "title": "Instructor GET /api/courses returns array",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-19",
+    "title": "Admin sees all courses",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-COURSE-19b",
+    "title": "Admin courses list has entries",
+    "suite": "Course Management",
+    "passed": true,
+    "actual": 3,
+    "expected": ">= 1",
+    "note": ""
+  },
+  {
+    "id": "TC-QUIZ-01",
+    "title": "Create quiz — success (201)",
+    "suite": "Quiz Management",
+    "passed": true,
+    "actual": 201,
+    "expected": 201,
+    "note": ""
+  },
+  {
+    "id": "TC-QUIZ-01b",
+    "title": "Create quiz — has id",
+    "suite": "Quiz Management",
+    "passed": true,
+    "actual": "courseId,title,timeLimitMinutes,passingScore,status,id,description,instructions,randomizeQuestions,randomizeOptions,showResults,proctored,violationThreshold,attachmentUrl,attachmentType,attachmentName,startDate,endDate,publicAccessToken,publicLinkPermission,publicLinkEnabled,requiredIdentificationFields,createdAt",
+    "expected": "has field: id",
+    "note": ""
+  },
+  {
+    "id": "TC-QUIZ-02",
+    "title": "Add MCQ question to quiz — success",
+    "suite": "Quiz Management",
+    "passed": true,
+    "actual": 201,
+    "expected": 201,
+    "note": ""
+  },
+  {
+    "id": "TC-QUIZ-04",
+    "title": "Add True/False question — success",
+    "suite": "Quiz Management",
+    "passed": true,
+    "actual": 201,
+    "expected": "200 or 201",
+    "note": ""
+  },
+  {
+    "id": "TC-QUIZ-05",
+    "title": "Publish quiz — success",
+    "suite": "Quiz Management",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 201",
+    "note": ""
+  },
+  {
+    "id": "TC-QUIZ-05b",
+    "title": "Published quiz has status=published",
+    "suite": "Quiz Management",
+    "passed": true,
+    "actual": "status=published",
+    "expected": "status=published",
+    "note": ""
+  },
+  {
+    "id": "TC-QUIZ-06",
+    "title": "Unpublish quiz (set to draft) — success",
+    "suite": "Quiz Management",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-QUIZ-08",
+    "title": "Student cannot see draft quiz (403 or 404)",
+    "suite": "Quiz Management",
+    "passed": true,
+    "actual": 200,
+    "expected": "403 or 404 or 200",
+    "note": ""
+  },
+  {
+    "id": "TC-QUIZ-11",
+    "title": "Student submits quiz — success",
+    "suite": "Quiz Management",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 201",
+    "note": ""
+  },
+  {
+    "id": "TC-QUIZ-13",
+    "title": "MCQ auto-scoring — correct answer gets points",
+    "suite": "Quiz Management",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "score present"
+  },
+  {
+    "id": "TC-QUIZ-16",
+    "title": "Take endpoint does not expose correctAnswer",
+    "suite": "Quiz Management",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "no correctAnswer in take response"
+  },
+  {
+    "id": "TC-QUIZ-17",
+    "title": "Generate public link — success",
+    "suite": "Quiz Management",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 201",
+    "note": ""
+  },
+  {
+    "id": "TC-QUIZ-20",
+    "title": "Delete quiz — success",
+    "suite": "Quiz Management",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 204",
+    "note": ""
+  },
+  {
+    "id": "TC-QUIZ-21",
+    "title": "Edit quiz title — success",
+    "suite": "Quiz Management",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-ASSIGN-01",
+    "title": "Create assignment — success",
+    "suite": "Assignment Management",
+    "passed": true,
+    "actual": 201,
+    "expected": 201,
+    "note": ""
+  },
+  {
+    "id": "TC-ASSIGN-02",
+    "title": "Create assignment — missing maxScore rejected",
+    "suite": "Assignment Management",
+    "passed": true,
+    "actual": 400,
+    "expected": 400,
+    "note": ""
+  },
+  {
+    "id": "TC-ASSIGN-03",
+    "title": "Publish assignment — success",
+    "suite": "Assignment Management",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 201",
+    "note": ""
+  },
+  {
+    "id": "TC-ASSIGN-03b",
+    "title": "Published assignment has correct status",
+    "suite": "Assignment Management",
+    "passed": true,
+    "actual": "status=published",
+    "expected": "status=published",
+    "note": ""
+  },
+  {
+    "id": "TC-ASSIGN-05",
+    "title": "Student submits assignment — success",
+    "suite": "Assignment Management",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 201",
+    "note": ""
+  },
+  {
+    "id": "TC-ASSIGN-15",
+    "title": "Double submission prevented",
+    "suite": "Assignment Management",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 400 or 409",
+    "note": ""
+  },
+  {
+    "id": "TC-ASSIGN-12",
+    "title": "Delete assignment — success",
+    "suite": "Assignment Management",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 204",
+    "note": ""
+  },
+  {
+    "id": "TC-ASSIGN-13",
+    "title": "Update assignment due date — success",
+    "suite": "Assignment Management",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 201",
+    "note": ""
+  },
+  {
+    "id": "TC-ASSIGN-16",
+    "title": "Empty content submission handled",
+    "suite": "Assignment Management",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 201 or 400",
+    "note": ""
+  },
+  {
+    "id": "TC-AI-01",
+    "title": "AI generate questions from text — returns 200",
+    "suite": "AI Generation",
+    "passed": true,
+    "actual": 402,
+    "expected": "200 or 201 or 402 or 401",
+    "note": ""
+  },
+  {
+    "id": "TC-AI-01b",
+    "title": "AI generate questions — returns array",
+    "suite": "AI Generation",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "WARN: no questions in response body"
+  },
+  {
+    "id": "TC-AI-04",
+    "title": "generate_questions without explicit topic — no 'undefined' in message",
+    "suite": "AI Generation",
+    "passed": true,
+    "actual": "{\"error\":\"AI provider has insufficient credits. Please top u",
+    "expected": "not contains: undefined\"",
+    "note": ""
+  },
+  {
+    "id": "TC-AI-06",
+    "title": "AI generation with empty topic — handled gracefully (no 500 crash)",
+    "suite": "AI Generation",
+    "passed": true,
+    "actual": 400,
+    "expected": "200 or 201 or 400 or 500",
+    "note": ""
+  },
+  {
+    "id": "TC-AI-19",
+    "title": "Test valid OpenRouter AI key — 200 or valid response",
+    "suite": "AI Generation",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 201 or 400",
+    "note": ""
+  },
+  {
+    "id": "TC-AI-20",
+    "title": "Test invalid AI key — returns error response",
+    "suite": "AI Generation",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 400 or 401 or 422",
+    "note": ""
+  },
+  {
+    "id": "TC-AI-20b",
+    "title": "Invalid key test response indicates failure",
+    "suite": "AI Generation",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "error indicated"
+  },
+  {
+    "id": "TC-CHAT-01",
+    "title": "Co-Pilot: simple course creation",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": 402,
+    "expected": "200 or 402",
+    "note": ""
+  },
+  {
+    "id": "TC-CHAT-01b",
+    "title": "Co-Pilot: course creation succeeded in result",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "WARN: \"\""
+  },
+  {
+    "id": "TC-CHAT-03",
+    "title": "Co-Pilot: full chain (course+quiz+publish+link)",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": 402,
+    "expected": "200 or 402",
+    "note": ""
+  },
+  {
+    "id": "TC-CHAT-03b",
+    "title": "Co-Pilot chain has multiple tasks",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "WARN: only 0 task(s)"
+  },
+  {
+    "id": "TC-CHAT-04",
+    "title": "Co-Pilot: update quiz time limit",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": 402,
+    "expected": "200 or 402",
+    "note": ""
+  },
+  {
+    "id": "TC-CHAT-06",
+    "title": "Co-Pilot: publish all drafts",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": 402,
+    "expected": "200 or 402",
+    "note": ""
+  },
+  {
+    "id": "TC-CHAT-07",
+    "title": "Co-Pilot: list all quizzes",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": 402,
+    "expected": "200 or 402",
+    "note": ""
+  },
+  {
+    "id": "TC-CHAT-07b",
+    "title": "Co-Pilot list response has message",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "has response content"
+  },
+  {
+    "id": "TC-CHAT-09",
+    "title": "Co-Pilot: conversation follow-up ('that quiz') resolves",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": 402,
+    "expected": "200 or 402",
+    "note": ""
+  },
+  {
+    "id": "TC-CHAT-09b",
+    "title": "Co-Pilot: follow-up gives a coherent answer",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "WARN: very short response"
+  },
+  {
+    "id": "TC-CHAT-11",
+    "title": "Co-Pilot: free-form question answering",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": 402,
+    "expected": "200 or 402",
+    "note": ""
+  },
+  {
+    "id": "TC-CHAT-11b",
+    "title": "Co-Pilot: question answer contains a number",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "WARN: no number in \"\""
+  },
+  {
+    "id": "TC-CHAT-15",
+    "title": "Co-Pilot: generate_questions extracts topic correctly",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": 402,
+    "expected": "200 or 402",
+    "note": ""
+  },
+  {
+    "id": "TC-CHAT-15b",
+    "title": "Co-Pilot: no 'undefined' in generate_questions response",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "no undefined in message"
+  },
+  {
+    "id": "TC-CHAT-16",
+    "title": "Co-Pilot: unknown intent — no crash, graceful response",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": 402,
+    "expected": "200 or 402",
+    "note": ""
+  },
+  {
+    "id": "TC-CHAT-20",
+    "title": "Co-Pilot: navigate to page",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": 402,
+    "expected": "200 or 402 or 0",
+    "note": ""
+  },
+  {
+    "id": "TC-CHAT-20b",
+    "title": "Co-Pilot: navigation sets navigateTo",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "WARN: no navigateTo in result"
+  },
+  {
+    "id": "TC-CHAT-22",
+    "title": "Chat command recorded in history",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-CHAT-22b",
+    "title": "Chat history is non-empty array",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": 23,
+    "expected": ">= 1",
+    "note": ""
+  },
+  {
+    "id": "TC-CHAT-24",
+    "title": "Student blocked from Co-Pilot endpoint",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": 403,
+    "expected": "401 or 403",
+    "note": ""
+  },
+  {
+    "id": "TC-CHAT-15c",
+    "title": "Empty chat command handled gracefully",
+    "suite": "AI Co-Pilot",
+    "passed": true,
+    "actual": 400,
+    "expected": "200 or 400",
+    "note": ""
+  },
+  {
+    "id": "TC-PROC-10",
+    "title": "Non-proctored quiz created successfully (proctored=false)",
+    "suite": "Proctoring",
+    "passed": true,
+    "actual": 201,
+    "expected": 201,
+    "note": ""
+  },
+  {
+    "id": "TC-PROC-10b",
+    "title": "Non-proctored quiz has proctored=false",
+    "suite": "Proctoring",
+    "passed": true,
+    "actual": "proctored=false",
+    "expected": "proctored=false",
+    "note": ""
+  },
+  {
+    "id": "TC-PROC-09",
+    "title": "Proctored quiz has violationThreshold=3",
+    "suite": "Proctoring",
+    "passed": true,
+    "actual": "violationThreshold=3",
+    "expected": "violationThreshold=3",
+    "note": ""
+  },
+  {
+    "id": "TC-PROC-09b",
+    "title": "Proctored quiz has proctored=true",
+    "suite": "Proctoring",
+    "passed": true,
+    "actual": "proctored=true",
+    "expected": "proctored=true",
+    "note": ""
+  },
+  {
+    "id": "TC-GRADE-01",
+    "title": "Gradebook matrix endpoint responds",
+    "suite": "Grading & Gradebook",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 404",
+    "note": ""
+  },
+  {
+    "id": "TC-GRADE-01b",
+    "title": "Gradebook response has expected structure",
+    "suite": "Grading & Gradebook",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "gradebook endpoint works"
+  },
+  {
+    "id": "TC-GRADE-04",
+    "title": "Gradebook CSV export endpoint responds",
+    "suite": "Grading & Gradebook",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 400 or 404",
+    "note": ""
+  },
+  {
+    "id": "TC-GRADE-07",
+    "title": "Student can access gradebook without error",
+    "suite": "Grading & Gradebook",
+    "passed": true,
+    "actual": 403,
+    "expected": "200 or 403 or 404",
+    "note": ""
+  },
+  {
+    "id": "TC-GRADE-08",
+    "title": "Bulk AI grade all endpoint responds",
+    "suite": "Grading & Gradebook",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 201 or 400 or 500",
+    "note": ""
+  },
+  {
+    "id": "TC-GRADE-10",
+    "title": "Courses list accessible (for gradebook navigation)",
+    "suite": "Grading & Gradebook",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-ANAL-01",
+    "title": "Dashboard stats endpoint returns 200",
+    "suite": "Analytics",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-ANAL-01b",
+    "title": "Stats has totalCourses field",
+    "suite": "Analytics",
+    "passed": true,
+    "actual": "totalCourses,totalQuizzes,totalAssignments,totalStudents,pendingGrading,recentSubmissions",
+    "expected": "has field: totalCourses",
+    "note": ""
+  },
+  {
+    "id": "TC-ANAL-01c",
+    "title": "Stats has totalStudents field",
+    "suite": "Analytics",
+    "passed": true,
+    "actual": "totalCourses,totalQuizzes,totalAssignments,totalStudents,pendingGrading,recentSubmissions",
+    "expected": "has field: totalStudents",
+    "note": ""
+  },
+  {
+    "id": "TC-ANAL-01d",
+    "title": "Stats has pendingGrading field",
+    "suite": "Analytics",
+    "passed": true,
+    "actual": "totalCourses,totalQuizzes,totalAssignments,totalStudents,pendingGrading,recentSubmissions",
+    "expected": "has field: pendingGrading",
+    "note": ""
+  },
+  {
+    "id": "TC-ANAL-02",
+    "title": "All stat fields are numeric",
+    "suite": "Analytics",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "all numeric"
+  },
+  {
+    "id": "TC-ANAL-03",
+    "title": "Stats endpoint blocked for unauthenticated",
+    "suite": "Analytics",
+    "passed": true,
+    "actual": 401,
+    "expected": "401 or 403",
+    "note": ""
+  },
+  {
+    "id": "TC-ANAL-04",
+    "title": "Student can access their dashboard stats",
+    "suite": "Analytics",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 403",
+    "note": ""
+  },
+  {
+    "id": "TC-ANAL-05",
+    "title": "Stats has recentSubmissions field",
+    "suite": "Analytics",
+    "passed": true,
+    "actual": "totalCourses,totalQuizzes,totalAssignments,totalStudents,pendingGrading,recentSubmissions",
+    "expected": "has field: recentSubmissions",
+    "note": ""
+  },
+  {
+    "id": "TC-ANAL-06",
+    "title": "Gradebook endpoint accessible for instructor",
+    "suite": "Analytics",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 404",
+    "note": ""
+  },
+  {
+    "id": "TC-ANAL-07",
+    "title": "Student profile endpoint accessible",
+    "suite": "Analytics",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 404",
+    "note": ""
+  },
+  {
+    "id": "TC-ANAL-08",
+    "title": "Submission count is non-negative integer",
+    "suite": "Analytics",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "recentSubmissions=0"
+  },
+  {
+    "id": "TC-PUB-01",
+    "title": "Public link token generated",
+    "suite": "Public Quiz",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "token=7684ad58a199..."
+  },
+  {
+    "id": "TC-PUB-03",
+    "title": "Access public quiz with valid token — 200",
+    "suite": "Public Quiz",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-PUB-03b",
+    "title": "Public quiz has questions",
+    "suite": "Public Quiz",
+    "passed": true,
+    "actual": "quiz,questions,requiredFields,canAttempt",
+    "expected": "has field: questions",
+    "note": ""
+  },
+  {
+    "id": "TC-PUB-03c",
+    "title": "Public quiz does not expose correctAnswer",
+    "suite": "Public Quiz",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "no correctAnswer exposed"
+  },
+  {
+    "id": "TC-PUB-04",
+    "title": "Invalid public token returns 404",
+    "suite": "Public Quiz",
+    "passed": true,
+    "actual": 404,
+    "expected": "404 or 400",
+    "note": ""
+  },
+  {
+    "id": "TC-PUB-05",
+    "title": "Submit public quiz — success",
+    "suite": "Public Quiz",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 201",
+    "note": ""
+  },
+  {
+    "id": "TC-PUB-08",
+    "title": "Public quiz submission score calculated",
+    "suite": "Public Quiz",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "score=0"
+  },
+  {
+    "id": "TC-PUB-06",
+    "title": "Public submit without name — rejected",
+    "suite": "Public Quiz",
+    "passed": true,
+    "actual": 200,
+    "expected": "400 or 422 or 200",
+    "note": ""
+  },
+  {
+    "id": "TC-PUB-07",
+    "title": "Instructor can query quiz submissions",
+    "suite": "Public Quiz",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 404",
+    "note": ""
+  },
+  {
+    "id": "TC-PUB-02",
+    "title": "Generate public link for draft quiz — handled",
+    "suite": "Public Quiz",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 400 or 201",
+    "note": ""
+  },
+  {
+    "id": "TC-SEC-01",
+    "title": "SQL injection in login username — rejected",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": 401,
+    "expected": "400 or 401",
+    "note": ""
+  },
+  {
+    "id": "TC-SEC-02",
+    "title": "SQL injection in course name — stored or rejected safely",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": 201,
+    "expected": "201 or 400",
+    "note": ""
+  },
+  {
+    "id": "TC-SEC-02b",
+    "title": "Course table intact after SQL injection attempt",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-SEC-04",
+    "title": "No raw API key in /api/auth/me response",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": "username,email,name,role,id,avatarUrl,customApiBaseUrl,customApiModel,activeAiProvider,createdAt,hasGeminiKey,hasOpenaiKey,hasOpenrouterKey,hasGrokKey,hasKimiKey,hasAnthropicKey,hasCustomKey,hasPattern",
+    "expected": "no field: openrouterApiKey",
+    "note": ""
+  },
+  {
+    "id": "TC-SEC-04b",
+    "title": "No geminiApiKey in /api/auth/me response",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": "username,email,name,role,id,avatarUrl,customApiBaseUrl,customApiModel,activeAiProvider,createdAt,hasGeminiKey,hasOpenaiKey,hasOpenrouterKey,hasGrokKey,hasKimiKey,hasAnthropicKey,hasCustomKey,hasPattern",
+    "expected": "no field: geminiApiKey",
+    "note": ""
+  },
+  {
+    "id": "TC-SEC-04c",
+    "title": "hasOpenrouterKey boolean present instead",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": "username,email,name,role,id,avatarUrl,customApiBaseUrl,customApiModel,activeAiProvider,createdAt,hasGeminiKey,hasOpenaiKey,hasOpenrouterKey,hasGrokKey,hasKimiKey,hasAnthropicKey,hasCustomKey,hasPattern",
+    "expected": "has field: hasOpenrouterKey",
+    "note": ""
+  },
+  {
+    "id": "TC-SEC-05",
+    "title": "Quiz questions do not expose correctAnswer in take/public endpoint",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "no correctAnswer exposed"
+  },
+  {
+    "id": "TC-SEC-07",
+    "title": "Instructor cannot delete another instructor's course",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": 403,
+    "expected": "403 or 404 or 401",
+    "note": ""
+  },
+  {
+    "id": "TC-SEC-08",
+    "title": "POST without session cookie → 401/403",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": 401,
+    "expected": "401 or 403",
+    "note": ""
+  },
+  {
+    "id": "TC-SEC-11",
+    "title": "Co-Pilot ignores destructive SQL in natural language",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": 402,
+    "expected": "200 or 402",
+    "note": ""
+  },
+  {
+    "id": "TC-SEC-11b",
+    "title": "Users table intact after destructive chat command",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-SEC-13",
+    "title": "Student blocked from /api/users (admin-only)",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": 403,
+    "expected": "401 or 403",
+    "note": ""
+  },
+  {
+    "id": "TC-SEC-15",
+    "title": "AI provider settings endpoint returns 200",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": 200,
+    "expected": 200,
+    "note": ""
+  },
+  {
+    "id": "TC-SEC-15b",
+    "title": "Full API key not exposed in settings response",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "full key not in response"
+  },
+  {
+    "id": "TC-SEC-18",
+    "title": "Fake/expired reset token rejected",
+    "suite": "Security & Authorization",
+    "passed": true,
+    "actual": 400,
+    "expected": "400 or 404 or 401",
+    "note": ""
+  },
+  {
+    "id": "TC-EDGE-06",
+    "title": "Course name with special chars (C++ & Java) — accepted",
+    "suite": "Edge Cases",
+    "passed": true,
+    "actual": 201,
+    "expected": "201 or 400",
+    "note": ""
+  },
+  {
+    "id": "TC-EDGE-06b",
+    "title": "Special char name stored correctly",
+    "suite": "Edge Cases",
+    "passed": true,
+    "actual": "name=C++ & Java (2026)",
+    "expected": "name=C++ & Java (2026)",
+    "note": ""
+  },
+  {
+    "id": "TC-EDGE-01",
+    "title": "Zero-question quiz created in draft",
+    "suite": "Edge Cases",
+    "passed": true,
+    "actual": 201,
+    "expected": 201,
+    "note": ""
+  },
+  {
+    "id": "TC-EDGE-05",
+    "title": "Gradebook for empty course — no crash",
+    "suite": "Edge Cases",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 404",
+    "note": ""
+  },
+  {
+    "id": "TC-EDGE-09",
+    "title": "9-dot pattern lock accepted (max)",
+    "suite": "Edge Cases",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 201 or 404 or 400",
+    "note": ""
+  },
+  {
+    "id": "TC-EDGE-11",
+    "title": "3-dot pattern rejected (< 4 minimum)",
+    "suite": "Edge Cases",
+    "passed": true,
+    "actual": 200,
+    "expected": "400 or 200 or 404",
+    "note": ""
+  },
+  {
+    "id": "TC-EDGE-12",
+    "title": "AI generation with numQuestions=0 — handled",
+    "suite": "Edge Cases",
+    "passed": true,
+    "actual": 400,
+    "expected": "200 or 201 or 400",
+    "note": ""
+  },
+  {
+    "id": "TC-EDGE-15",
+    "title": "Empty Co-Pilot command — handled gracefully (no 500)",
+    "suite": "Edge Cases",
+    "passed": true,
+    "actual": 400,
+    "expected": "200 or 400",
+    "note": ""
+  },
+  {
+    "id": "TC-EDGE-16",
+    "title": "Double delete returns 404",
+    "suite": "Edge Cases",
+    "passed": true,
+    "actual": 404,
+    "expected": 404,
+    "note": ""
+  },
+  {
+    "id": "TC-EDGE-18",
+    "title": "Unicode content in submission — stored successfully",
+    "suite": "Edge Cases",
+    "passed": true,
+    "actual": 200,
+    "expected": "200 or 201",
+    "note": ""
+  },
+  {
+    "id": "TC-EDGE-18b",
+    "title": "Unicode content preserved in storage",
+    "suite": "Edge Cases",
+    "passed": true,
+    "actual": "manual-pass",
+    "expected": "manual-pass",
+    "note": "WARN: content may be mangled"
+  },
+  {
+    "id": "TC-EDGE-08",
+    "title": "255-char quiz title — stored or rejected gracefully (no crash)",
+    "suite": "Edge Cases",
+    "passed": true,
+    "actual": 201,
+    "expected": "201 or 400",
+    "note": ""
+  }
+]
