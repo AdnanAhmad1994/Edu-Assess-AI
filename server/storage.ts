@@ -13,8 +13,13 @@ import {
   type PublicQuizSubmission, type InsertPublicQuizSubmission,
   type PasswordResetToken, type InsertPasswordResetToken,
   type ChatCommand, type InsertChatCommand,
+  users, courses, lectures, questions, quizzes, quizQuestions,
+  assignments, enrollments, quizSubmissions, assignmentSubmissions,
+  proctoringViolations, publicQuizSubmissions, passwordResetTokens, chatCommands,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { eq, and, desc } from "drizzle-orm";
+import { db } from "./db";
 
 export interface IStorage {
   // Users
@@ -1144,4 +1149,165 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// ─── Database Storage (PostgreSQL via Drizzle ORM) ───────────────────────────
+export class DatabaseStorage implements IStorage {
+  // Users
+  async getUser(id: string) { return (await db!.select().from(users).where(eq(users.id, id)))[0]; }
+  async getUsers(role?: string) {
+    const rows = await db!.select().from(users);
+    return role ? rows.filter(u => u.role === role) : rows;
+  }
+  async getUserByUsername(username: string) { return (await db!.select().from(users).where(eq(users.username, username)))[0]; }
+  async getUserByEmail(email: string) { return (await db!.select().from(users).where(eq(users.email, email)))[0]; }
+  async createUser(data: InsertUser) { return (await db!.insert(users).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async updateUser(id: string, data: Partial<User>) { return (await db!.update(users).set(data).where(eq(users.id, id)).returning())[0]; }
+  async deleteUser(id: string) { await db!.delete(users).where(eq(users.id, id)); }
+
+  // Courses
+  async getCourses(instructorId?: string) {
+    const rows = await db!.select().from(courses);
+    return instructorId ? rows.filter(c => c.instructorId === instructorId) : rows;
+  }
+  async getCourse(id: string) { return (await db!.select().from(courses).where(eq(courses.id, id)))[0]; }
+  async createCourse(data: InsertCourse) { return (await db!.insert(courses).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async updateCourse(id: string, data: Partial<InsertCourse>) { return (await db!.update(courses).set(data).where(eq(courses.id, id)).returning())[0]; }
+  async deleteCourse(id: string) { await db!.delete(courses).where(eq(courses.id, id)); }
+
+  // Lectures
+  async getLectures(courseId?: string) {
+    const rows = await db!.select().from(lectures);
+    return courseId ? rows.filter(l => l.courseId === courseId) : rows;
+  }
+  async getLecture(id: string) { return (await db!.select().from(lectures).where(eq(lectures.id, id)))[0]; }
+  async createLecture(data: InsertLecture) { return (await db!.insert(lectures).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async updateLecture(id: string, data: Partial<InsertLecture>) { return (await db!.update(lectures).set(data).where(eq(lectures.id, id)).returning())[0]; }
+  async deleteLecture(id: string) { await db!.delete(lectures).where(eq(lectures.id, id)); }
+
+  // Questions
+  async getQuestions(courseId?: string, lectureId?: string) {
+    const rows = await db!.select().from(questions);
+    return rows.filter(q =>
+      (!courseId || q.courseId === courseId) &&
+      (!lectureId || q.lectureId === lectureId)
+    );
+  }
+  async getQuestion(id: string) { return (await db!.select().from(questions).where(eq(questions.id, id)))[0]; }
+  async createQuestion(data: InsertQuestion) { return (await db!.insert(questions).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async createQuestions(data: InsertQuestion[]) {
+    return db!.insert(questions).values(data.map(q => ({ ...q, id: randomUUID() }))).returning();
+  }
+  async updateQuestion(id: string, data: Partial<InsertQuestion>) { return (await db!.update(questions).set(data).where(eq(questions.id, id)).returning())[0]; }
+  async deleteQuestion(id: string) { await db!.delete(questions).where(eq(questions.id, id)); }
+
+  // Quizzes
+  async getQuizzes(courseId?: string) {
+    const rows = await db!.select().from(quizzes);
+    return courseId ? rows.filter(q => q.courseId === courseId) : rows;
+  }
+  async getQuiz(id: string) { return (await db!.select().from(quizzes).where(eq(quizzes.id, id)))[0]; }
+  async getQuizByToken(token: string) { return (await db!.select().from(quizzes).where(eq(quizzes.publicAccessToken, token)))[0]; }
+  async createQuiz(data: InsertQuiz) { return (await db!.insert(quizzes).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async updateQuiz(id: string, data: Partial<InsertQuiz>) { return (await db!.update(quizzes).set(data).where(eq(quizzes.id, id)).returning())[0]; }
+  async deleteQuiz(id: string) { await db!.delete(quizzes).where(eq(quizzes.id, id)); }
+
+  // Quiz Questions
+  async getQuizQuestions(quizId: string) { return db!.select().from(quizQuestions).where(eq(quizQuestions.quizId, quizId)); }
+  async addQuizQuestion(data: InsertQuizQuestion) { return (await db!.insert(quizQuestions).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async removeQuizQuestion(quizId: string, questionId: string) {
+    await db!.delete(quizQuestions).where(and(eq(quizQuestions.quizId, quizId), eq(quizQuestions.questionId, questionId)));
+  }
+  async clearQuizQuestions(quizId: string) { await db!.delete(quizQuestions).where(eq(quizQuestions.quizId, quizId)); }
+
+  // Assignments
+  async getAssignments(courseId?: string) {
+    const rows = await db!.select().from(assignments);
+    return courseId ? rows.filter(a => a.courseId === courseId) : rows;
+  }
+  async getAssignment(id: string) { return (await db!.select().from(assignments).where(eq(assignments.id, id)))[0]; }
+  async createAssignment(data: InsertAssignment) { return (await db!.insert(assignments).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async updateAssignment(id: string, data: Partial<InsertAssignment>) { return (await db!.update(assignments).set(data).where(eq(assignments.id, id)).returning())[0]; }
+  async deleteAssignment(id: string) { await db!.delete(assignments).where(eq(assignments.id, id)); }
+
+  // Enrollments
+  async getEnrollments(courseId?: string, studentId?: string) {
+    const rows = await db!.select().from(enrollments);
+    return rows.filter(e =>
+      (!courseId || e.courseId === courseId) &&
+      (!studentId || e.studentId === studentId)
+    );
+  }
+  async createEnrollment(data: InsertEnrollment) { return (await db!.insert(enrollments).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async deleteEnrollment(courseId: string, studentId: string) {
+    await db!.delete(enrollments).where(and(eq(enrollments.courseId, courseId), eq(enrollments.studentId, studentId)));
+  }
+
+  // Quiz Submissions
+  async getQuizSubmissions(quizId?: string, studentId?: string) {
+    const rows = await db!.select().from(quizSubmissions);
+    return rows.filter(s =>
+      (!quizId || s.quizId === quizId) &&
+      (!studentId || s.studentId === studentId)
+    );
+  }
+  async getQuizSubmission(id: string) { return (await db!.select().from(quizSubmissions).where(eq(quizSubmissions.id, id)))[0]; }
+  async createQuizSubmission(data: InsertQuizSubmission) { return (await db!.insert(quizSubmissions).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async updateQuizSubmission(id: string, data: Partial<QuizSubmission>) { return (await db!.update(quizSubmissions).set(data).where(eq(quizSubmissions.id, id)).returning())[0]; }
+
+  // Assignment Submissions
+  async getAssignmentSubmissions(assignmentId?: string, studentId?: string) {
+    const rows = await db!.select().from(assignmentSubmissions);
+    return rows.filter(s =>
+      (!assignmentId || s.assignmentId === assignmentId) &&
+      (!studentId || s.studentId === studentId)
+    );
+  }
+  async getAssignmentSubmission(id: string) { return (await db!.select().from(assignmentSubmissions).where(eq(assignmentSubmissions.id, id)))[0]; }
+  async createAssignmentSubmission(data: any) { return (await db!.insert(assignmentSubmissions).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async updateAssignmentSubmission(id: string, data: Partial<AssignmentSubmission>) { return (await db!.update(assignmentSubmissions).set(data).where(eq(assignmentSubmissions.id, id)).returning())[0]; }
+
+  // Proctoring Violations
+  async getProctoringViolations(submissionId: string) { return db!.select().from(proctoringViolations).where(eq(proctoringViolations.submissionId, submissionId)); }
+  async createProctoringViolation(data: InsertProctoringViolation) { return (await db!.insert(proctoringViolations).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async updateProctoringViolation(id: string, data: Partial<ProctoringViolation>) { return (await db!.update(proctoringViolations).set(data).where(eq(proctoringViolations.id, id)).returning())[0]; }
+
+  // Public Quiz Submissions
+  async getPublicQuizSubmissions(quizId: string) { return db!.select().from(publicQuizSubmissions).where(eq(publicQuizSubmissions.quizId, quizId)); }
+  async getPublicQuizSubmission(id: string) { return (await db!.select().from(publicQuizSubmissions).where(eq(publicQuizSubmissions.id, id)))[0]; }
+  async createPublicQuizSubmission(data: InsertPublicQuizSubmission) { return (await db!.insert(publicQuizSubmissions).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async updatePublicQuizSubmission(id: string, data: Partial<PublicQuizSubmission>) { return (await db!.update(publicQuizSubmissions).set(data).where(eq(publicQuizSubmissions.id, id)).returning())[0]; }
+
+  // Password Reset Tokens
+  async createPasswordResetToken(data: InsertPasswordResetToken) { return (await db!.insert(passwordResetTokens).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async getPasswordResetToken(token: string) { return (await db!.select().from(passwordResetTokens).where(eq(passwordResetTokens.token, token)))[0]; }
+  async markPasswordResetTokenUsed(id: string) { await db!.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.id, id)); }
+
+  // Chat Commands
+  async getChatCommands(userId: string) { return db!.select().from(chatCommands).where(eq(chatCommands.userId, userId)); }
+  async createChatCommand(data: InsertChatCommand) { return (await db!.insert(chatCommands).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async updateChatCommand(id: string, data: Partial<ChatCommand>) { return (await db!.update(chatCommands).set(data).where(eq(chatCommands.id, id)).returning())[0]; }
+
+  // Dashboard Stats
+  async getDashboardStats(userId: string) {
+    const user = await this.getUser(userId);
+    if (!user) return null;
+    if (user.role === "admin" || user.role === "instructor") {
+      const allCourses = await this.getCourses(user.role === "instructor" ? userId : undefined);
+      const allUsers = await this.getUsers();
+      const students = allUsers.filter(u => u.role === "student");
+      return { totalCourses: allCourses.length, totalStudents: students.length, totalInstructors: allUsers.filter(u => u.role === "instructor").length };
+    }
+    const myEnrollments = await this.getEnrollments(undefined, userId);
+    return { enrolledCourses: myEnrollments.length };
+  }
+
+  // Student Performance
+  async getStudentPerformance(studentId: string) {
+    const subs = await this.getQuizSubmissions(undefined, studentId);
+    const graded = subs.filter(s => s.status === "graded" && s.percentage != null);
+    const avg = graded.length ? Math.round(graded.reduce((a, b) => a + (b.percentage ?? 0), 0) / graded.length) : 0;
+    return { totalSubmissions: subs.length, averageScore: avg, gradedSubmissions: graded.length };
+  }
+}
+
+// ─── Smart Export: use DB storage when DATABASE_URL is set, else in-memory ───
+export const storage: IStorage = db ? new DatabaseStorage() : new MemStorage();
