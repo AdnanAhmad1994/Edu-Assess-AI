@@ -2,11 +2,12 @@ import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
 
-// server deps to bundle to reduce openat(2) syscalls
-// which helps cold start times
+// Deps to bundle (reduces cold start syscalls)
 const allowlist = [
   "@google/generative-ai",
+  "@google/genai",
   "axios",
+  "bcryptjs",
   "connect-pg-simple",
   "cors",
   "date-fns",
@@ -24,6 +25,7 @@ const allowlist = [
   "passport",
   "passport-local",
   "pg",
+  "resend",
   "stripe",
   "uuid",
   "ws",
@@ -38,7 +40,6 @@ async function buildAll() {
   console.log("building client...");
   await viteBuild();
 
-  console.log("building server...");
   const pkg = JSON.parse(await readFile("package.json", "utf-8"));
   const allDeps = [
     ...Object.keys(pkg.dependencies || {}),
@@ -46,17 +47,31 @@ async function buildAll() {
   ];
   const externals = allDeps.filter((dep) => !allowlist.includes(dep));
 
+  console.log("building server (local dev)...");
   await esbuild({
     entryPoints: ["server/index.ts"],
     platform: "node",
     bundle: true,
     format: "cjs",
     outfile: "dist/index.cjs",
-    define: {
-      "process.env.NODE_ENV": '"production"',
-    },
+    define: { "process.env.NODE_ENV": '"production"' },
     minify: true,
     external: externals,
+    tsconfig: "tsconfig.json",
+    logLevel: "info",
+  });
+
+  console.log("building api bundle (Vercel serverless)...");
+  await esbuild({
+    entryPoints: ["api/index.ts"],
+    platform: "node",
+    bundle: true,
+    format: "cjs",          // Vercel Node.js runtime expects CJS
+    outfile: "api/index.js", // Pre-compiled — Vercel uses .js over .ts
+    define: { "process.env.NODE_ENV": '"production"' },
+    minify: false,           // Keep readable for Vercel logs
+    external: externals,     // Keep node_modules external (Vercel provides them)
+    tsconfig: "tsconfig.json", // Resolves @shared/* and @/* path aliases
     logLevel: "info",
   });
 }
