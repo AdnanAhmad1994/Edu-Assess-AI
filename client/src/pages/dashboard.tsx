@@ -87,6 +87,136 @@ function StatCard({
   );
 }
 
+function AdminDashboard() {
+  const [, setLocation] = useLocation();
+  
+  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
+    queryKey: ["/api/dashboard/stats"],
+  });
+
+  const { data: recentCourses, isLoading: coursesLoading } = useQuery<Course[]>({
+    queryKey: ["/api/courses"],
+  });
+
+  const { data: recentQuizzes, isLoading: quizzesLoading } = useQuery<Quiz[]>({
+    queryKey: ["/api/quizzes"],
+  });
+
+  if (statsLoading || coursesLoading || quizzesLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  return (
+    <div className="space-y-8 fade-in">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Welcome back! Here's an overview of your assessments.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Button onClick={() => setLocation("/quizzes/new")} data-testid="button-new-quiz">
+            <Plus className="w-4 h-4 mr-2" />
+            New Quiz
+          </Button>
+          <Button variant="outline" onClick={() => setLocation("/assignments?action=create")} data-testid="button-new-assignment">
+            <Plus className="w-4 h-4 mr-2" />
+            New Assignment
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Active Courses"
+          value={stats?.totalCourses || 0}
+          description="Courses you're teaching"
+          icon={BookOpen}
+          color="primary"
+          onClick={() => setLocation("/courses")}
+        />
+        <StatCard
+          title="Published Quizzes"
+          value={stats?.totalQuizzes || 0}
+          description="Ready for students"
+          icon={FileQuestion}
+          color="accent"
+          onClick={() => setLocation("/quizzes")}
+        />
+        <StatCard
+          title="Pending Grading"
+          value={stats?.pendingGrading || 0}
+          description="Submissions to review"
+          icon={AlertTriangle}
+          color="warning"
+          onClick={() => setLocation("/assignments")}
+        />
+        <StatCard
+          title="Students Enrolled"
+          value={stats?.totalStudents || 0}
+          description="Across all courses"
+          icon={Users}
+          color="primary"
+          onClick={() => setLocation("/analytics")}
+        />
+      </div>
+
+      <div className="grid gap-6">
+        {/* Recent Courses */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <div>
+              <CardTitle>Recent Courses</CardTitle>
+              <CardDescription>Your active courses</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/courses")} data-testid="button-view-all-courses">
+              View All
+              <ArrowRight className="w-4 h-4 ml-1" />
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {recentCourses && recentCourses.length > 0 ? (
+              <div className="space-y-3">
+                {recentCourses.slice(0, 4).map((course) => (
+                  <div
+                    key={course.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover-elevate cursor-pointer"
+                    onClick={() => setLocation("/courses")}
+                    data-testid={`course-item-${course.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <BookOpen className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium truncate max-w-[140px]">{course.name}</p>
+                        <p className="text-xs text-muted-foreground">{course.code} · {course.semester}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={BookOpen}
+                title="No courses yet"
+                description="Create your first course"
+                action={
+                  <Button size="sm" onClick={() => setLocation("/courses")}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Go to Courses
+                  </Button>
+                }
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 function InstructorDashboard() {
   const [, setLocation] = useLocation();
   
@@ -524,7 +654,11 @@ function DashboardSkeleton() {
 export default function DashboardPage() {
   const { user } = useAuth();
 
-  if (user?.role === "instructor" || user?.role === "admin") {
+  if (user?.role === "admin") {
+    return <AdminDashboard />;
+  }
+  
+  if (user?.role === "instructor") {
     return <InstructorDashboard />;
   }
 
