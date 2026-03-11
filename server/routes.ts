@@ -377,6 +377,20 @@ export async function registerRoutes(
       res.status(500).json({ error: "Fatal debug error: " + e.message });
     }
   });
+  // Admin & Instructor - Get Instructors List
+  app.get("/api/users/instructors", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (user?.role !== "admin" && user?.role !== "instructor") {
+         return res.status(403).json({ error: "Unauthorized" });
+      }
+      const instructors = await storage.getUsers("instructor");
+      res.json(instructors.map(sanitizeUser));
+    } catch (error) {
+      console.error("Get instructors error:", error);
+      res.status(500).json({ error: "Failed to fetch instructors" });
+    }
+  });
 
   // Admin - User Management
   app.get("/api/users", requireAdmin, async (req, res) => {
@@ -703,13 +717,23 @@ export async function registerRoutes(
 
   app.post("/api/courses", requireInstructor, async (req, res) => {
     try {
-      const data = insertCourseSchema.omit({ instructorId: true }).parse(req.body);
+      const data = insertCourseSchema.parse(req.body);
       if (!data.name || data.name.trim().length < 3) {
         return res.status(400).json({ error: "Course name must be at least 3 characters" });
       }
+      
+      const user = await storage.getUser(req.session.userId!);
+      // If admin and provided an instructorId, use it. Otherwise default to themselves
+      const targetInstructorId = (user?.role === "admin" && data.instructorId) 
+        ? data.instructorId 
+        : req.session.userId!;
+
+      const courseDataToSave = { ...data };
+      delete courseDataToSave.instructorId; // Handled explicitly below
+
       const course = await storage.createCourse({
-        ...data,
-        instructorId: req.session.userId!,
+        ...courseDataToSave,
+        instructorId: targetInstructorId,
       });
       res.status(201).json(course);
     } catch (error) {
@@ -821,7 +845,14 @@ export async function registerRoutes(
       if (requestingUser?.role !== "admin" && course.instructorId !== req.session.userId) {
         return res.status(403).json({ error: "You do not own this course" });
       }
-      const updated = await storage.updateCourse(req.params.id as string, req.body);
+
+      const updates = { ...req.body };
+      // Only admins can change the instructor of an existing course
+      if (requestingUser?.role !== "admin") {
+         delete updates.instructorId;
+      }
+
+      const updated = await storage.updateCourse(req.params.id as string, updates);
       res.json(updated);
     } catch (error) {
       res.status(500).json({ error: "Failed to update course" });

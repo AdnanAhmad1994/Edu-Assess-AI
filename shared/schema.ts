@@ -301,7 +301,9 @@ export * from "./models/chat";
 
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
-export const insertCourseSchema = createInsertSchema(courses).omit({ id: true, createdAt: true });
+export const insertCourseSchema = createInsertSchema(courses)
+  .omit({ id: true, createdAt: true })
+  .extend({ instructorId: z.string().optional() });
 export const insertLectureSchema = createInsertSchema(lectures).omit({ id: true, createdAt: true });
 export const insertQuestionSchema = createInsertSchema(questions).omit({ id: true, createdAt: true });
 export const insertQuizSchema = createInsertSchema(quizzes).omit({ id: true, createdAt: true });

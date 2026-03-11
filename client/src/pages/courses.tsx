@@ -47,13 +47,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import type { Course } from "@shared/schema";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { Course, User } from "@shared/schema";
 
 const courseSchema = z.object({
   name: z.string().min(3, "Course name must be at least 3 characters"),
   code: z.string().min(2, "Course code is required"),
   description: z.string().optional(),
   semester: z.string().min(1, "Semester is required"),
+  instructorId: z.string().optional(),
 });
 
 type CourseFormData = z.infer<typeof courseSchema>;
@@ -71,6 +79,11 @@ export default function CoursesPage() {
 
   const { data: courses, isLoading } = useQuery<Course[]>({
     queryKey: ["/api/courses"],
+  });
+
+  const { data: instructors } = useQuery<User[]>({
+    queryKey: ["/api/users/instructors"],
+    enabled: user?.role === "admin",
   });
 
   const createCourseMutation = useMutation({
@@ -166,6 +179,7 @@ export default function CoursesPage() {
       code: "",
       description: "",
       semester: "",
+      instructorId: user?.role === "admin" ? "" : undefined,
     },
   });
 
@@ -176,6 +190,7 @@ export default function CoursesPage() {
       code: "",
       description: "",
       semester: "",
+      instructorId: "",
     },
   });
 
@@ -190,6 +205,7 @@ export default function CoursesPage() {
       code: course.code,
       description: course.description || "",
       semester: course.semester,
+      instructorId: course.instructorId,
     });
     setIsEditOpen(true);
   };
@@ -343,6 +359,32 @@ export default function CoursesPage() {
                       )}
                     />
                   </div>
+                  {user?.role === "admin" && (
+                    <FormField
+                      control={form.control}
+                      name="instructorId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Assign Instructor</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select an instructor" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {instructors?.map((instructor) => (
+                                <SelectItem key={instructor.id} value={instructor.id}>
+                                  {instructor.name} ({instructor.username})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                   <FormField
                     control={form.control}
                     name="description"
@@ -543,6 +585,32 @@ export default function CoursesPage() {
                   )}
                 />
               </div>
+              {user?.role === "admin" && (
+                <FormField
+                  control={editForm.control}
+                  name="instructorId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Assign Instructor</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Leave unchanged or select new" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {instructors?.map((instructor) => (
+                            <SelectItem key={instructor.id} value={instructor.id}>
+                              {instructor.name} ({instructor.username})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={editForm.control}
                 name="description"
