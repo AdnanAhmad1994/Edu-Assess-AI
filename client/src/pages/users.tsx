@@ -45,6 +45,14 @@ const addUserSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
   role: z.enum(["instructor", "student", "admin"]),
   courseId: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.role === "student" && (!data.courseId || data.courseId === "none")) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "A student must be assigned to a course.",
+      path: ["courseId"],
+    });
+  }
 });
 
 type AddUserFormData = z.infer<typeof addUserSchema>;
@@ -239,7 +247,7 @@ export default function UsersPage() {
                     name="courseId"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Assign to Course (Optional)</FormLabel>
+                        <FormLabel>Assign to Course (Required)</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger data-testid="select-course">
@@ -247,7 +255,7 @@ export default function UsersPage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="none">-- No Initial Course --</SelectItem>
+                            <SelectItem value="none" disabled>-- Select a Course --</SelectItem>
                             {courses?.map((course) => (
                               <SelectItem key={course.id} value={course.id}>
                                 {course.name} ({course.code})

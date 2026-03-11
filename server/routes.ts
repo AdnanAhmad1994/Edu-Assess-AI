@@ -422,13 +422,17 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Email already exists" });
       }
 
+      if (data.role === "student" && (!data.courseId || data.courseId === "none")) {
+        return res.status(400).json({ error: "A student must be assigned to a course." });
+      }
+
       const hashedPassword = await bcrypt.hash(data.password, 10);
       
       // Omit courseId before saving the user
       const { courseId, ...userData } = data;
       const user = await storage.createUser({ ...userData, password: hashedPassword });
 
-      // Automatically enroll if courseId was provided and the new user is a student
+      // Automatically enroll the new student
       if (user.role === "student" && courseId) {
         await storage.createEnrollment({
           courseId,
