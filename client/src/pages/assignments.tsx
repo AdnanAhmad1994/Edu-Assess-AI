@@ -50,10 +50,11 @@ const assignmentSchema = z.object({
 type AssignmentFormData = z.infer<typeof assignmentSchema>;
 
 export default function AssignmentsPage() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  const searchParams = new URLSearchParams(window.location.search);
   const { user } = useAuth();
   const { toast } = useToast();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(searchParams.get("action") === "create");
   const [activeTab, setActiveTab] = useState("all");
 
   const { data: assignments, isLoading } = useQuery<Assignment[]>({

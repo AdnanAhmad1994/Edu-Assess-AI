@@ -120,7 +120,7 @@ function InstructorDashboard() {
             <Plus className="w-4 h-4 mr-2" />
             New Quiz
           </Button>
-          <Button variant="outline" onClick={() => setLocation("/assignments/new")} data-testid="button-new-assignment">
+          <Button variant="outline" onClick={() => setLocation("/assignments?action=create")} data-testid="button-new-assignment">
             <Plus className="w-4 h-4 mr-2" />
             New Assignment
           </Button>
