@@ -224,6 +224,11 @@ export async function generateWithProvider(
       const response = await ai.models.generateContent({
         model,
         contents: [{ role: "user", parts }],
+        ...(options.jsonMode && {
+          generationConfig: {
+            responseMimeType: "application/json",
+          }
+        }),
       });
       return { text: response.text || "", provider: "gemini", model };
     }

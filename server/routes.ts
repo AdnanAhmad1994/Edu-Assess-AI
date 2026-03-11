@@ -1464,7 +1464,8 @@ Respond in JSON format:
 
       const aiUser = await getAiUser(req.session.userId);
       const aiResult = await generateWithProvider({
-        maxTokens: 1024,  // each question ~80–120 tokens; 5 questions needs ~600, 10 needs ~1000
+        maxTokens: 2048,
+        jsonMode: true,
         messages: [{
           role: "user",
           content: `Generate ${numQuestions} multiple choice quiz questions based on the following content.
@@ -1482,8 +1483,8 @@ Respond in JSON format:
       "text": "Question text",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctAnswer": "The correct answer",
-      "difficulty": "easy" | "medium" | "hard",
-      "points": 1-3
+      "difficulty": "easy",
+      "points": 1
     }
   ]
 }`
@@ -1569,7 +1570,8 @@ Respond in JSON format:
 }`;
 
       const aiResult = await generateWithProvider({
-        maxTokens: 1024,  // file-based question generation; same budget as text generation
+        maxTokens: 2048,
+        jsonMode: true,
         messages: [{
           role: "user",
           content: isImage
