@@ -132,7 +132,7 @@ function AdminDashboard() {
           description="Across all courses"
           icon={Users}
           color="primary"
-          onClick={() => setLocation("/analytics")}
+          onClick={() => setLocation("/users")}
         />
       </div>
 
@@ -262,7 +262,7 @@ function InstructorDashboard() {
           description="Across all courses"
           icon={Users}
           color="primary"
-          onClick={() => setLocation("/analytics")}
+          onClick={() => setLocation("/users")}
         />
       </div>
 

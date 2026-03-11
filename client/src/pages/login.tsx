@@ -14,7 +14,7 @@ import { apiRequest } from "@/lib/queryClient";
 import PatternLockGrid from "@/components/pattern-lock-grid";
 
 const loginSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
+  username: z.string().min(3, "Username or email must be at least 3 characters"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
@@ -163,10 +163,10 @@ export default function LoginPage() {
                       name="username"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Username</FormLabel>
+                          <FormLabel>Username or Email</FormLabel>
                           <FormControl>
                             <Input 
-                              placeholder="Enter your username" 
+                              placeholder="Enter your username or email" 
                               data-testid="input-username"
                               {...field} 
                             />
@@ -227,9 +227,9 @@ export default function LoginPage() {
             ) : (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Username</label>
+                  <label className="text-sm font-medium">Username or Email</label>
                   <Input
-                    placeholder="Enter your username"
+                    placeholder="Enter your username or email"
                     value={patternUsername}
                     onChange={(e) => setPatternUsername(e.target.value)}
                     data-testid="input-pattern-username"

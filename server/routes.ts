@@ -225,7 +225,12 @@ export async function registerRoutes(
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { username, password } = req.body;
-      const user = await storage.getUserByUsername(username);
+      const input = username.trim();
+      let user = await storage.getUserByUsername(input);
+      
+      if (!user) {
+        user = await storage.getUserByEmail(input.toLowerCase());
+      }
 
       if (!user || !(await bcrypt.compare(password, user.password))) {
         return res.status(401).json({ error: "Invalid credentials" });
@@ -773,7 +778,14 @@ export async function registerRoutes(
       if (!username || !pattern || !Array.isArray(pattern)) {
         return res.status(400).json({ error: "Username and pattern are required" });
       }
-      const user = await storage.getUserByUsername(username.trim());
+      
+      const input = username.trim();
+      let user = await storage.getUserByUsername(input);
+      
+      if (!user) {
+        user = await storage.getUserByEmail(input.toLowerCase());
+      }
+      
       if (!user || !user.patternHash) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
