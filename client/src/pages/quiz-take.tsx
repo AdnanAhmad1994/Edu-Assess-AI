@@ -88,10 +88,19 @@ export default function QuizTakePage() {
       return apiRequest("POST", `/api/quiz/${id}/start`);
     },
     onSuccess: (data: any) => {
+      console.log("[QUIZ] Quiz session started:", data.submissionId);
       setSubmissionId(data.submissionId);
       if (quiz?.timeLimitMinutes) {
         setTimeRemaining(quiz.timeLimitMinutes * 60);
       }
+    },
+    onError: (error: Error) => {
+      console.error("[QUIZ] Failed to start quiz:", error);
+      toast({
+        title: "Failed to initialize quiz",
+        description: "Please refresh the page and try again.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -100,6 +109,7 @@ export default function QuizTakePage() {
       return apiRequest("POST", `/api/quiz/${id}/submit`, data);
     },
     onSuccess: (data: any) => {
+      console.log("[QUIZ] Quiz submitted successfully:", data.submissionId);
       toast({ title: "Quiz submitted!", description: "Your answers have been recorded." });
       setLocation(`/quiz/${id}/results/${data.submissionId}`);
     },
@@ -297,10 +307,13 @@ export default function QuizTakePage() {
     if (!submissionId) return;
 
     setIsSubmitting(true);
+    console.log("[QUIZ] Formulating submission payload for submissionId:", submissionId);
     const answerArray: Answer[] = Object.entries(answers).map(([questionId, answer]) => ({
       questionId,
       answer,
     }));
+
+    console.log("[QUIZ] Triggering submission mutation with", answerArray.length, "answers");
 
     submitQuizMutation.mutate({ submissionId, answers: answerArray });
   }, [submissionId, answers]);

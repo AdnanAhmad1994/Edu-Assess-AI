@@ -1180,6 +1180,7 @@ Respond in JSON format:
   app.post("/api/quiz/:id/start", requireAuth, async (req, res) => {
     try {
       const quizId = req.params.id as string;
+      console.log(`[QUIZ_START] Attempting to start quiz ${quizId} for user ${req.session.userId}`);
       const quiz = await storage.getQuiz(quizId);
       if (!quiz) {
         return res.status(404).json({ error: "Quiz not found" });
@@ -1200,6 +1201,7 @@ Respond in JSON format:
         status: "in_progress",
       });
 
+      console.log(`[QUIZ_START] Created submission ${submission.id} for quiz ${quizId}`);
       res.json({ submissionId: submission.id });
     } catch (error) {
       res.status(500).json({ error: "Failed to start quiz" });
