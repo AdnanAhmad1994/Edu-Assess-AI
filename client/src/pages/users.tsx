@@ -34,7 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import type { User } from "@shared/schema";
+import type { User, Course } from "@shared/schema";
 
 type SafeUser = Omit<User, "password" | "patternHash" | "geminiApiKey">;
 
@@ -44,6 +44,7 @@ const addUserSchema = z.object({
   email: z.string().email("Valid email is required"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   role: z.enum(["instructor", "student", "admin"]),
+  courseId: z.string().optional(),
 });
 
 type AddUserFormData = z.infer<typeof addUserSchema>;
@@ -85,6 +86,10 @@ export default function UsersPage() {
     queryKey: ["/api/users"],
   });
 
+  const { data: courses } = useQuery<Course[]>({
+    queryKey: ["/api/courses"],
+  });
+
   const addForm = useForm<AddUserFormData>({
     resolver: zodResolver(addUserSchema),
     defaultValues: {
@@ -93,6 +98,7 @@ export default function UsersPage() {
       email: "",
       password: "",
       role: "instructor",
+      courseId: "none",
     },
   });
 
@@ -108,7 +114,12 @@ export default function UsersPage() {
 
   const createUserMutation = useMutation({
     mutationFn: async (data: AddUserFormData) => {
-      const res = await apiRequest("POST", "/api/users", data);
+      // Remove 'none' dummy value for optional select
+      const payload = { ...data };
+      if (payload.courseId === "none") {
+        delete payload.courseId;
+      }
+      const res = await apiRequest("POST", "/api/users", payload);
       return res.json();
     },
     onSuccess: (data) => {
@@ -197,7 +208,15 @@ export default function UsersPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Role</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select 
+                        onValueChange={(val) => {
+                          field.onChange(val);
+                          if (val !== "student") {
+                            addForm.setValue("courseId", "none");
+                          }
+                        }} 
+                        defaultValue={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger data-testid="select-role">
                             <SelectValue placeholder="Select role" />
@@ -213,6 +232,35 @@ export default function UsersPage() {
                     </FormItem>
                   )}
                 />
+
+                {addForm.watch("role") === "student" && (
+                  <FormField
+                    control={addForm.control}
+                    name="courseId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Assign to Course (Optional)</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-course">
+                              <SelectValue placeholder="Select a course" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">-- No Initial Course --</SelectItem>
+                            {courses?.map((course) => (
+                              <SelectItem key={course.id} value={course.id}>
+                                {course.name} ({course.code})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
                 <FormField
                   control={addForm.control}
                   name="name"

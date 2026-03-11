@@ -406,7 +406,11 @@ export async function registerRoutes(
 
   app.post("/api/users", requireAdmin, async (req, res) => {
     try {
-      const data = insertUserSchema.parse(req.body);
+      // Extend the schema to temporarily allow courseId from the frontend
+      const extendedSchema = insertUserSchema.extend({
+        courseId: z.string().optional(),
+      });
+      const data = extendedSchema.parse(req.body);
 
       const existingUsername = await storage.getUserByUsername(data.username);
       if (existingUsername) {
@@ -419,7 +423,19 @@ export async function registerRoutes(
       }
 
       const hashedPassword = await bcrypt.hash(data.password, 10);
-      const user = await storage.createUser({ ...data, password: hashedPassword });
+      
+      // Omit courseId before saving the user
+      const { courseId, ...userData } = data;
+      const user = await storage.createUser({ ...userData, password: hashedPassword });
+
+      // Automatically enroll if courseId was provided and the new user is a student
+      if (user.role === "student" && courseId) {
+        await storage.createEnrollment({
+          courseId,
+          studentId: user.id
+        });
+      }
+
       res.status(201).json(sanitizeUser(user));
     } catch (error) {
       console.error("Create user error:", error);
