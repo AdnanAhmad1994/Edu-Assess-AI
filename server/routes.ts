@@ -1258,6 +1258,15 @@ Respond in JSON format:
         return res.status(404).json({ error: "Quiz not found" });
       }
 
+      // Enrollment check for students
+      const user = await storage.getUser(req.session.userId!);
+      if (user?.role === "student") {
+        const enrollments = await storage.getEnrollments(quiz.courseId, user.id);
+        if (enrollments.length === 0) {
+          return res.status(403).json({ error: "You are not enrolled in the course for this quiz." });
+        }
+      }
+
       const quizQuestions = await storage.getQuizQuestions(quiz.id);
       const questions = quizQuestions.map(qq => ({
         id: qq.question.id,
@@ -1449,8 +1458,8 @@ Respond in JSON format:
         maxTokens: 1024,  // each question ~80–120 tokens; 5 questions needs ~600, 10 needs ~1000
         messages: [{
           role: "user",
-          content: `Generate ${numQuestions} quiz questions based on the following content.
-Mix question types (multiple choice, true/false, short answer, fill in the blank).
+          content: `Generate ${numQuestions} multiple choice quiz questions based on the following content.
+Each question must be a multiple choice question with exactly 4 options.
 Difficulty level: ${difficulty}
 
 Content:
@@ -1460,9 +1469,9 @@ Respond in JSON format:
 {
   "questions": [
     {
-      "type": "mcq" | "true_false" | "short_answer" | "fill_blank",
+      "type": "mcq",
       "text": "Question text",
-      "options": ["Option A", "Option B", "Option C", "Option D"] (for MCQ only),
+      "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctAnswer": "The correct answer",
       "difficulty": "easy" | "medium" | "hard",
       "points": 1-3
@@ -1514,35 +1523,35 @@ Respond in JSON format:
       const dataUri = `data:${mimeType};base64,${base64}`;
 
       const promptText = isImage
-        ? `Analyze this image and generate ${numQuestions} quiz questions based on its content.
-Mix question types (multiple choice, true/false, short answer, fill in the blank).
+        ? `Analyze this image and generate ${numQuestions} multiple choice quiz questions based on its content.
+Each question must be a multiple choice question with exactly 4 options.
 Difficulty level: ${difficulty}
 
 Respond in JSON format:
 {
   "questions": [
     {
-      "type": "mcq" | "true_false" | "short_answer" | "fill_blank",
+      "type": "mcq",
       "text": "Question text",
-      "options": ["Option A", "Option B", "Option C", "Option D"] (for MCQ only),
+      "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctAnswer": "The correct answer",
       "difficulty": "easy" | "medium" | "hard",
       "points": 1-3
     }
   ]
 }`
-        : `Analyze this document (${fileName || "uploaded file"}) and generate ${numQuestions} quiz questions based on its content.
+        : `Analyze this document (${fileName || "uploaded file"}) and generate ${numQuestions} multiple choice quiz questions based on its content.
 Extract key concepts, facts, and important details from the document.
-Mix question types (multiple choice, true/false, short answer, fill in the blank).
+Each question must be a multiple choice question with exactly 4 options.
 Difficulty level: ${difficulty}
 
 Respond in JSON format:
 {
   "questions": [
     {
-      "type": "mcq" | "true_false" | "short_answer" | "fill_blank",
+      "type": "mcq",
       "text": "Question text",
-      "options": ["Option A", "Option B", "Option C", "Option D"] (for MCQ only),
+      "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctAnswer": "The correct answer",
       "difficulty": "easy" | "medium" | "hard",
       "points": 1-3

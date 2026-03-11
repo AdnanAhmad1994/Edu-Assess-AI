@@ -84,6 +84,7 @@ export default function QuizBuilderPage() {
   const [questions, setQuestions] = useState<QuestionInput[]>([]);
   const [aiPrompt, setAiPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [numQuestions, setNumQuestions] = useState(5);
   const [activeTab, setActiveTab] = useState(isAIMode ? "ai" : "manual");
   const [uploadedFile, setUploadedFile] = useState<{ url: string; name: string; type: string } | null>(null);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
@@ -217,7 +218,7 @@ export default function QuizBuilderPage() {
 
     setIsGenerating(true);
     generateQuestionsMutation.mutate(
-      { content: aiPrompt, courseId, numQuestions: 5, difficulty: "mixed" },
+      { content: aiPrompt, courseId, numQuestions, difficulty: "mixed" },
       { onSettled: () => setIsGenerating(false) }
     );
   };
@@ -273,7 +274,7 @@ export default function QuizBuilderPage() {
         fileUrl: uploadedFile.url,
         fileName: uploadedFile.name,
         fileType: uploadedFile.type,
-        numQuestions: 5,
+        numQuestions,
         difficulty: "mixed",
         courseId,
       },
@@ -298,7 +299,7 @@ export default function QuizBuilderPage() {
         fileUrl: lecture.fileUrl,
         fileName: lecture.title,
         fileType: lecture.fileType || "application/pdf",
-        numQuestions: 5,
+        numQuestions,
         difficulty: "mixed",
         courseId,
       },
@@ -602,6 +603,25 @@ export default function QuizBuilderPage() {
                           className="min-h-[120px] mb-4"
                           data-testid="textarea-ai-prompt"
                         />
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="flex flex-col gap-1.5 w-32">
+                            <Label htmlFor="topic-num-questions" className="text-xs">Questions</Label>
+                            <Input
+                              id="topic-num-questions"
+                              type="number"
+                              min={1}
+                              max={20}
+                              value={numQuestions}
+                              onChange={(e) => setNumQuestions(parseInt(e.target.value) || 1)}
+                              data-testid="input-num-questions-topic"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-xs text-muted-foreground mt-5">
+                              AI will generate exclusively Multiple Choice Questions (MCQs).
+                            </p>
+                          </div>
+                        </div>
                         <Button
                           type="button"
                           onClick={handleGenerateQuestions}
@@ -656,6 +676,26 @@ export default function QuizBuilderPage() {
                               </Button>
                             </div>
 
+                            <div className="flex items-center gap-4 mb-4">
+                              <div className="flex flex-col gap-1.5 w-32">
+                                <Label htmlFor="file-num-questions" className="text-xs">Questions</Label>
+                                <Input
+                                  id="file-num-questions"
+                                  type="number"
+                                  min={1}
+                                  max={20}
+                                  value={numQuestions}
+                                  onChange={(e) => setNumQuestions(parseInt(e.target.value) || 1)}
+                                  data-testid="input-num-questions-file"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-xs text-muted-foreground mt-5">
+                                  AI will generate exclusively Multiple Choice Questions (MCQs).
+                                </p>
+                              </div>
+                            </div>
+
                             <Button
                               type="button"
                               onClick={handleGenerateFromFile}
@@ -701,6 +741,26 @@ export default function QuizBuilderPage() {
                           <p className="text-sm text-muted-foreground mb-4">
                             Select an existing lecture file from this course. AI will analyze it and generate quiz questions.
                           </p>
+
+                          <div className="flex items-center gap-4 mb-6 p-4 rounded-lg border bg-background/50">
+                            <div className="flex flex-col gap-1.5 w-32">
+                              <Label htmlFor="lecture-num-questions" className="text-xs">Number of Questions</Label>
+                              <Input
+                                id="lecture-num-questions"
+                                type="number"
+                                min={1}
+                                max={20}
+                                value={numQuestions}
+                                onChange={(e) => setNumQuestions(parseInt(e.target.value) || 1)}
+                                data-testid="input-num-questions-lecture"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs text-muted-foreground mt-5">
+                                Specified questions will be generated as MCQs for the selected lecture.
+                              </p>
+                            </div>
+                          </div>
 
                           <div className="space-y-2">
                             {courseLectures.map((lecture) => (
