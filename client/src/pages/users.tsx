@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { User, Course } from "@shared/schema";
 
-type SafeUser = Omit<User, "password" | "patternHash" | "geminiApiKey">;
+type SafeUser = Omit<User, "password" | "patternHash" | "groqApiKey">;
 
 const addUserSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),

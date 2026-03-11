@@ -32,25 +32,7 @@ declare module "express-session" {
   }
 }
 
-// Keep a legacy Gemini client for routes that haven't been migrated yet
-const platformAi = new GoogleGenAI({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY || "placeholder",
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
-  },
-});
 
-/** Legacy helper – returns a GoogleGenAI instance (Gemini-only routes) */
-async function getAiClient(userId?: string): Promise<GoogleGenAI> {
-  if (userId) {
-    const user = await storage.getUser(userId);
-    if (user?.geminiApiKey) {
-      return new GoogleGenAI({ apiKey: user.geminiApiKey });
-    }
-  }
-  return platformAi;
-}
 
 /** Universal helper – uses the user's active provider (all AI routes should use this) */
 async function getAiUser(userId?: string) {
@@ -62,23 +44,14 @@ async function getAiUser(userId?: string) {
 function sanitizeUser(user: User) {
   const {
     password: _pw, patternHash: _ph,
-    geminiApiKey: _g, openaiApiKey: _oa, openrouterApiKey: _or,
-    grokApiKey: _gk, groqApiKey: _gq, groqApiModel: _gam, kimiApiKey: _ki, anthropicApiKey: _an,
-    customApiKey: _cu,
+    groqApiKey: _gq, groqApiModel: _gam,
     ...safe
   } = user;
   return {
     ...safe,
-    hasGeminiKey: !!user.geminiApiKey,
-    hasOpenaiKey: !!user.openaiApiKey,
-    hasOpenrouterKey: !!user.openrouterApiKey,
-    hasGrokKey: !!user.grokApiKey,
     hasGroqKey: !!user.groqApiKey,
-    hasKimiKey: !!user.kimiApiKey,
-    hasAnthropicKey: !!user.anthropicApiKey,
-    hasCustomKey: !!user.customApiKey,
     hasPattern: !!user.patternHash,
-    activeAiProvider: user.activeAiProvider || "gemini",
+    activeAiProvider: "groq",
   };
 }
 
@@ -162,30 +135,14 @@ export async function registerRoutes(
     });
     console.log("Default admin account created (username: admin, password: admin123)");
   }
-
   // Auto-apply AI provider keys from environment variables on startup
-  // This allows persistent key config via env vars even with in-memory storage
-  const envOpenrouterKey = process.env.OPENROUTER_API_KEY;
-  const envGeminiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-  const envOpenaiKey = process.env.OPENAI_API_KEY;
   const envGroqKey = process.env.GROQ_API_KEY;
-  if (adminUser && (envOpenrouterKey || envGeminiKey || envOpenaiKey || envGroqKey)) {
-    const keyUpdate: Partial<typeof adminUser> = {};
-    if (envOpenrouterKey) {
-      keyUpdate.openrouterApiKey = envOpenrouterKey;
-      keyUpdate.activeAiProvider = "openrouter";
-    } else if (envGeminiKey) {
-      keyUpdate.geminiApiKey = envGeminiKey;
-      keyUpdate.activeAiProvider = "gemini";
-    } else if (envOpenaiKey) {
-      keyUpdate.openaiApiKey = envOpenaiKey;
-      keyUpdate.activeAiProvider = "openai";
-    } else if (envGroqKey) {
-      keyUpdate.groqApiKey = envGroqKey;
-      keyUpdate.activeAiProvider = "groq";
-    }
-    await storage.updateUser(adminUser.id, keyUpdate);
-    console.log(`AI provider auto-configured from env: ${keyUpdate.activeAiProvider}`);
+  if (adminUser && envGroqKey) {
+    await storage.updateUser(adminUser.id, {
+      groqApiKey: envGroqKey,
+      activeAiProvider: "groq",
+    });
+    console.log("AI provider auto-configured: Groq Cloud");
   }
 
   // Auth Routes
@@ -587,24 +544,11 @@ export async function registerRoutes(
     }
   });
 
-  // Settings - Gemini API Key
-  // ── Legacy Gemini key route (kept for backwards compat) ──────────────────
-  app.get("/api/settings/gemini-key", requireInstructor, async (req, res) => {
-    try {
-      const user = await storage.getUser(req.session.userId!);
-      if (!user) return res.status(404).json({ error: "User not found" });
-      const maskedKey = user.geminiApiKey
-        ? user.geminiApiKey.slice(0, 6) + "..." + user.geminiApiKey.slice(-4)
-        : null;
-      res.json({ hasKey: !!user.geminiApiKey, maskedKey });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch settings" });
-    }
-  });
+
 
   // ── Multi-provider AI settings ──────────────────────────────────────────────
 
-  /** GET /api/settings/ai-providers
+    /** GET /api/settings/ai-providers
    *  Returns per-provider key status (masked) + active provider */
   app.get("/api/settings/ai-providers", requireInstructor, async (req, res) => {
     try {
@@ -615,24 +559,12 @@ export async function registerRoutes(
         k ? k.slice(0, 6) + "..." + k.slice(-4) : null;
 
       res.json({
-        activeProvider: user.activeAiProvider || "gemini",
+        activeProvider: "groq",
         providers: {
-          gemini: { hasKey: !!user.geminiApiKey, maskedKey: mask(user.geminiApiKey) },
-          openai: { hasKey: !!user.openaiApiKey, maskedKey: mask(user.openaiApiKey) },
-          openrouter: { hasKey: !!user.openrouterApiKey, maskedKey: mask(user.openrouterApiKey) },
-          grok: { hasKey: !!user.grokApiKey, maskedKey: mask(user.grokApiKey) },
           groq: {
             hasKey: !!user.groqApiKey,
             maskedKey: mask(user.groqApiKey),
             model: user.groqApiModel || null,
-          },
-          kimi: { hasKey: !!user.kimiApiKey, maskedKey: mask(user.kimiApiKey) },
-          anthropic: { hasKey: !!user.anthropicApiKey, maskedKey: mask(user.anthropicApiKey) },
-          custom: {
-            hasKey: !!user.customApiKey || !!user.customApiBaseUrl,
-            maskedKey: mask(user.customApiKey),
-            baseUrl: user.customApiBaseUrl || null,
-            model: user.customApiModel || null,
           },
         },
       });
@@ -641,74 +573,42 @@ export async function registerRoutes(
     }
   });
 
-  /** PUT /api/settings/ai-providers
-   *  Save one or more provider keys + set active provider */
+    /** PUT /api/settings/ai-providers
+   *  Save Groq key + model */
   app.put("/api/settings/ai-providers", requireInstructor, async (req, res) => {
     try {
-      const {
-        activeProvider,
-        geminiApiKey, openaiApiKey, openrouterApiKey,
-        grokApiKey, groqApiKey, groqApiModel, kimiApiKey, anthropicApiKey,
-        customApiKey, customApiBaseUrl, customApiModel,
-      } = req.body;
+      const { groqApiKey, groqApiModel } = req.body;
 
-      // Validate provider value if given
-      if (activeProvider && !AI_PROVIDERS.includes(activeProvider as AiProvider)) {
-        return res.status(400).json({ error: "Invalid provider. Valid options: " + AI_PROVIDERS.join(", ") });
-      }
-
-      const updateData: Partial<User> = {};
-      if (activeProvider !== undefined) updateData.activeAiProvider = activeProvider;
-      if (geminiApiKey !== undefined) updateData.geminiApiKey = geminiApiKey || null;
-      if (openaiApiKey !== undefined) updateData.openaiApiKey = openaiApiKey || null;
-      if (openrouterApiKey !== undefined) updateData.openrouterApiKey = openrouterApiKey || null;
-      if (grokApiKey !== undefined) updateData.grokApiKey = grokApiKey || null;
+      const updateData: Partial<User> = { activeAiProvider: "groq" };
       if (groqApiKey !== undefined) updateData.groqApiKey = groqApiKey || null;
       if (groqApiModel !== undefined) updateData.groqApiModel = groqApiModel || null;
-      if (kimiApiKey !== undefined) updateData.kimiApiKey = kimiApiKey || null;
-      if (anthropicApiKey !== undefined) updateData.anthropicApiKey = anthropicApiKey || null;
-      if (customApiKey !== undefined) updateData.customApiKey = customApiKey || null;
-      if (customApiBaseUrl !== undefined) updateData.customApiBaseUrl = customApiBaseUrl || null;
-      if (customApiModel !== undefined) updateData.customApiModel = customApiModel || null;
 
       const updated = await storage.updateUser(req.session.userId!, updateData);
       if (!updated) return res.status(404).json({ error: "User not found" });
 
-      res.json({ success: true, activeProvider: updated.activeAiProvider || "gemini" });
+      res.json({ success: true, activeProvider: "groq" });
     } catch (error) {
       console.error("Update AI providers error:", error);
       res.status(500).json({ error: "Failed to update AI provider settings" });
     }
   });
 
-  /** POST /api/settings/test-ai-provider
+    /** POST /api/settings/test-ai-provider
    *  Test that a given provider key actually works */
   app.post("/api/settings/test-ai-provider", requireInstructor, async (req, res) => {
     try {
-      const { provider, apiKey, baseUrl, model } = req.body;
-      if (!provider) return res.status(400).json({ error: "provider is required" });
+      const { provider, apiKey, model } = req.body;
+      if (provider !== "groq") return res.status(400).json({ error: "Only Groq is supported" });
 
-      const keyFields: Record<string, string | undefined> = {};
-      if (provider === "gemini") keyFields.geminiApiKey = apiKey;
-      if (provider === "openai") keyFields.openaiApiKey = apiKey;
-      if (provider === "openrouter") keyFields.openrouterApiKey = apiKey;
-      if (provider === "grok") keyFields.grokApiKey = apiKey;
-      if (provider === "groq") keyFields.groqApiKey = apiKey;
-      if (provider === "kimi") keyFields.kimiApiKey = apiKey;
-      if (provider === "anthropic") keyFields.anthropicApiKey = apiKey;
-      if (provider === "custom") {
-        keyFields.customApiKey = apiKey;
-        keyFields.customApiBaseUrl = baseUrl;
-        keyFields.customApiModel = model;
-      }
+      const keyFields = { groqApiKey: apiKey, groqApiModel: model };
 
-      const result = await testProviderKey(provider as AiProvider, keyFields);
+      const result = await testProviderKey("groq", keyFields);
       res.json({
         valid: result.success,
-        provider,
+        provider: "groq",
         model: result.model,
         message: result.success
-          ? `✅ ${PROVIDER_CONFIGS[provider as AiProvider]?.label || provider} is working`
+          ? `✅ Groq Cloud is working`
           : `❌ ${result.error || "Key validation failed"}`,
       });
     } catch (error: any) {
@@ -716,17 +616,7 @@ export async function registerRoutes(
     }
   });
 
-  // Legacy Gemini test (kept for any existing front-end calls)
-  app.post("/api/settings/test-gemini-key", requireInstructor, async (req, res) => {
-    try {
-      const { apiKey } = req.body;
-      if (!apiKey) return res.status(400).json({ error: "API key required" });
-      const result = await testProviderKey("gemini", { geminiApiKey: apiKey });
-      res.json({ valid: result.success, message: result.success ? "API key is working" : result.error });
-    } catch (error: any) {
-      res.json({ valid: false, message: error.message || "Invalid API key" });
-    }
-  });
+  
 
   // Pattern Lock Settings
   app.get("/api/settings/pattern", requireAuth, async (req, res) => {
@@ -1987,7 +1877,7 @@ AI FEATURES (available now):
   - Chatbot co-pilot (this!) with full platform control
   - Proctoring frame analysis (webcam screenshots → violation detection)
 
-ACTIVE AI PROVIDER: ${user?.activeAiProvider || "gemini"}
+ACTIVE AI PROVIDER: groq
 === END KNOWLEDGE ===`;
 
       const intentPrompt = `You are an expert AI co-pilot for EduAssess AI — an educational assessment platform. You are deeply familiar with the platform and can perform ANY management task the instructor asks, in natural language.
@@ -2094,15 +1984,15 @@ User command: "${command}"`;
         const msg = String(primaryErr?.message || primaryErr || "");
         const isCreditsError = msg.includes("402") || msg.toLowerCase().includes("credit") || msg.toLowerCase().includes("insufficient");
         if (isCreditsError) {
-          console.warn("Co-pilot: primary provider credit error, trying platform Gemini fallback");
+          console.warn("Co-pilot: primary provider credit error, trying platform Groq fallback");
           try {
             intentResult = await generateWithProvider({
               messages: [{ role: "user", content: intentPrompt }],
               maxTokens: 512,
-            }, undefined);  // undefined → platform Gemini key via env
+            }, undefined);  // undefined → platform Groq key via env
           } catch (fallbackErr: any) {
-            // Both providers failed — store the reason and return 402
-            providerError = "AI provider has insufficient credits. Please top up your OpenRouter balance or configure a different AI provider in Settings → AI Provider.";
+            // Both providers failed
+            providerError = "AI provider has insufficient credits. Please top up your Groq balance or configure a new API key in Settings.";
             console.warn("Co-pilot: fallback also failed:", fallbackErr?.message);
           }
         } else {
@@ -2181,7 +2071,7 @@ User command: "${command}"`;
         );
       };
 
-      // Helper: call generateWithProvider with automatic fallback to platform Gemini on 402/credit errors
+      // Helper: call generateWithProvider with automatic fallback to platform Groq on 402/credit errors
       const generateWithFallback = async (opts: Parameters<typeof generateWithProvider>[0]) => {
         try {
           return await generateWithProvider(opts, aiUser);
@@ -2189,11 +2079,12 @@ User command: "${command}"`;
           const msg = String(err?.message || err || "");
           const isCreditsError = msg.includes("402") || msg.toLowerCase().includes("credit") || msg.toLowerCase().includes("insufficient");
           if (isCreditsError) {
-            console.warn("Co-pilot task: credit error, falling back to platform Gemini");
+            console.warn("Co-pilot task: credit error, falling back to platform Groq");
             try {
+              // Try again without user record (uses platform GROQ_API_KEY from env)
               return await generateWithProvider(opts, undefined);
             } catch (fallbackErr: any) {
-              // Platform Gemini also unavailable — throw a 402-tagged error so outer catch returns 402
+              // Platform Groq also unavailable — throw a 402-tagged error
               throw new Error("402: AI provider insufficient_credits — " + String(fallbackErr?.message || fallbackErr));
             }
           }
@@ -2201,22 +2092,21 @@ User command: "${command}"`;
         }
       };
 
-      // Helper: generate questions for a quiz
+      // Helper: generate questions for a quiz (MCQ Only)
       const generateQuestionsForQuiz = async (quizId: string, courseId: string, topic: string, numQuestions: number, difficulty: string) => {
         try {
           const safeNum = Math.max(1, parseInt(String(numQuestions), 10) || 5);
-          const genPrompt = `Generate ${safeNum} quiz questions about "${topic}".
+          const genPrompt = `Generate exactly ${safeNum} Multiple Choice Questions (MCQs) about "${topic}".
 Return a JSON object with a "questions" array. Each question should have:
-- type: one of "mcq", "true_false", "short_answer", "fill_blank"
+- type: "mcq"
 - text: the question text
-- options: array of options (for mcq, 4 options; for true_false use ["True","False"]; empty array for others)
-- correctAnswer: the correct answer string
+- options: array of 4 options
+- correctAnswer: one of the options (must match exactly)
 - difficulty: "${difficulty === "mixed" ? "easy, medium, or hard (vary them)" : difficulty}"
 - points: 1 for easy, 2 for medium, 3 for hard
 
-Make questions clear, educational, and varied in type.
-Return only valid JSON, no markdown.`;
-          const genResult = await generateWithFallback({ messages: [{ role: "user", content: genPrompt }], maxTokens: 1024 });
+Ensure only MCQs are generated. Respond in valid JSON only.`;
+          const genResult = await generateWithFallback({ messages: [{ role: "user", content: genPrompt }], maxTokens: 2048, jsonMode: true });
           const genMatch = genResult.text.match(/\{[\s\S]*\}/);
           if (!genMatch) return 0;
           const genParsed = JSON.parse(genMatch[0]);
@@ -2224,7 +2114,7 @@ Return only valid JSON, no markdown.`;
           for (let qi = 0; qi < genParsed.questions.length; qi++) {
             const q = genParsed.questions[qi];
             const question = await storage.createQuestion({
-              courseId, type: q.type || "mcq", text: q.text,
+              courseId, type: "mcq", text: q.text,
               options: q.options || [], correctAnswer: q.correctAnswer || "",
               points: q.points || 1, difficulty: q.difficulty || "medium", aiGenerated: true,
             });

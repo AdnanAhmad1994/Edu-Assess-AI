@@ -12,13 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   Key, CheckCircle, XCircle, Loader2, Eye, EyeOff, Trash2, Sparkles,
-  Shield, Grid3X3, ChevronDown, ChevronUp, ExternalLink, Zap, Settings2,
+  Shield, Grid3X3, ChevronDown, ChevronUp, ExternalLink, Zap,
 } from "lucide-react";
 import PatternLockGrid from "@/components/pattern-lock-grid";
 
 // ─── Provider metadata ────────────────────────────────────────────────────────
 
-type AiProvider = "gemini" | "openai" | "openrouter" | "grok" | "groq" | "kimi" | "anthropic" | "custom";
+type AiProvider = "groq";
 
 interface ProviderMeta {
   label: string;
@@ -31,38 +31,6 @@ interface ProviderMeta {
 }
 
 const PROVIDERS: Record<AiProvider, ProviderMeta> = {
-  gemini: {
-    label: "Google Gemini",
-    description: "Gemini 2.5 Flash / Pro via AI Studio",
-    docsUrl: "https://aistudio.google.com/app/apikey",
-    placeholder: "AIza...",
-    color: "bg-blue-500/10 text-blue-600",
-    logo: "✦",
-  },
-  openai: {
-    label: "OpenAI",
-    description: "GPT-4o, GPT-4 Turbo via OpenAI API",
-    docsUrl: "https://platform.openai.com/api-keys",
-    placeholder: "sk-...",
-    color: "bg-emerald-500/10 text-emerald-600",
-    logo: "⬡",
-  },
-  openrouter: {
-    label: "OpenRouter",
-    description: "200+ models — Claude, GPT-4, Llama, Mixtral and more",
-    docsUrl: "https://openrouter.ai/keys",
-    placeholder: "sk-or-...",
-    color: "bg-purple-500/10 text-purple-600",
-    logo: "⇄",
-  },
-  grok: {
-    label: "Grok (xAI)",
-    description: "Grok 3 / Grok 3 Mini by xAI",
-    docsUrl: "https://console.x.ai/",
-    placeholder: "xai-...",
-    color: "bg-slate-500/10 text-slate-600",
-    logo: "X",
-  },
   groq: {
     label: "Groq Cloud",
     description: "Ultra-fast Llama 3 & Mixtral inference",
@@ -76,30 +44,6 @@ const PROVIDERS: Record<AiProvider, ProviderMeta> = {
       { value: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
       { value: "gemma2-9b-it", label: "Gemma 2 9B" },
     ],
-  },
-  kimi: {
-    label: "Kimi K2 (Moonshot AI)",
-    description: "Kimi K2 — 1 trillion parameter MoE model",
-    docsUrl: "https://platform.moonshot.ai/",
-    placeholder: "sk-...",
-    color: "bg-cyan-500/10 text-cyan-600",
-    logo: "月",
-  },
-  anthropic: {
-    label: "Anthropic Claude",
-    description: "Claude 3.5 Haiku / Sonnet via Anthropic API",
-    docsUrl: "https://console.anthropic.com/keys",
-    placeholder: "sk-ant-...",
-    color: "bg-orange-500/10 text-orange-600",
-    logo: "◈",
-  },
-  custom: {
-    label: "Custom (OpenAI-compatible)",
-    description: "Any local or cloud endpoint (Ollama, LM Studio, vLLM, Together AI…)",
-    docsUrl: "https://platform.openai.com/docs/api-reference",
-    placeholder: "API key (leave blank for local)",
-    color: "bg-gray-500/10 text-gray-600",
-    logo: "⚙",
   },
 };
 
@@ -195,20 +139,20 @@ function PatternLockSection() {
               <Label className="text-sm font-medium">Current Status</Label>
               <div className="flex items-center gap-3">
                 {patternStatus?.enabled ? (
-                  <Badge variant="default" className="gap-1" data-testid="badge-pattern-active"><CheckCircle className="w-3 h-3" />Pattern Set</Badge>
+                  <Badge variant="default" className="gap-1"><CheckCircle className="w-3 h-3" />Pattern Set</Badge>
                 ) : (
-                  <Badge variant="secondary" className="gap-1" data-testid="badge-pattern-not-set"><XCircle className="w-3 h-3" />Not Set</Badge>
+                  <Badge variant="secondary" className="gap-1"><XCircle className="w-3 h-3" />Not Set</Badge>
                 )}
               </div>
             </div>
 
             {step === "idle" && (
               <div className="flex items-center gap-2 flex-wrap">
-                <Button onClick={() => { setStep("draw"); setFirstPattern(null); setPatternError(false); }} data-testid="button-set-pattern">
+                <Button onClick={() => { setStep("draw"); setFirstPattern(null); setPatternError(false); }}>
                   <Grid3X3 className="w-4 h-4 mr-2" />{patternStatus?.enabled ? "Change Pattern" : "Set Pattern"}
                 </Button>
                 {patternStatus?.enabled && (
-                  <Button variant="outline" onClick={() => removePatternMutation.mutate()} disabled={removePatternMutation.isPending} data-testid="button-remove-pattern">
+                  <Button variant="outline" onClick={() => removePatternMutation.mutate()} disabled={removePatternMutation.isPending}>
                     {removePatternMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}Remove Pattern
                   </Button>
                 )}
@@ -217,18 +161,18 @@ function PatternLockSection() {
 
             {step === "draw" && (
               <div className="flex flex-col items-center gap-3">
-                <p className="text-sm font-medium" data-testid="text-pattern-draw-prompt">Draw your pattern (connect at least 4 dots)</p>
+                <p className="text-sm font-medium">Draw your pattern (connect at least 4 dots)</p>
                 <PatternLockGrid onComplete={handleFirstPattern} />
-                <Button variant="ghost" onClick={() => { setStep("idle"); setFirstPattern(null); }} data-testid="button-cancel-pattern">Cancel</Button>
+                <Button variant="ghost" onClick={() => { setStep("idle"); setFirstPattern(null); }}>Cancel</Button>
               </div>
             )}
 
             {step === "confirm" && (
               <div className="flex flex-col items-center gap-3">
-                <p className="text-sm font-medium" data-testid="text-pattern-confirm-prompt">Draw the same pattern again to confirm</p>
+                <p className="text-sm font-medium">Draw the same pattern again to confirm</p>
                 <PatternLockGrid onComplete={handleConfirmPattern} error={patternError} disabled={setPatternMutation.isPending} />
                 {setPatternMutation.isPending && <div className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Saving...</span></div>}
-                <Button variant="ghost" onClick={() => { setStep("draw"); setFirstPattern(null); }} data-testid="button-retry-pattern">Start Over</Button>
+                <Button variant="ghost" onClick={() => { setStep("draw"); setFirstPattern(null); }}>Start Over</Button>
               </div>
             )}
           </>
@@ -245,11 +189,10 @@ interface ProviderKeyRowProps {
   hasKey: boolean;
   maskedKey: string | null;
   isActive: boolean;
-  extra?: { baseUrl?: string | null; model?: string | null };
-  onActivate: () => void;
-  onSave: (key: string, extra?: { baseUrl?: string; model?: string }) => void;
+  extra?: { model?: string | null };
+  onSave: (key: string, extra?: { model?: string }) => void;
   onRemove: () => void;
-  onTest: (key: string, extra?: { baseUrl?: string; model?: string }) => void;
+  onTest: (key: string, extra?: { model?: string }) => void;
   isSaving: boolean;
   isTesting: boolean;
   isRemoving: boolean;
@@ -257,36 +200,23 @@ interface ProviderKeyRowProps {
 
 function ProviderKeyRow({
   provider, hasKey, maskedKey, isActive, extra,
-  onActivate, onSave, onRemove, onTest,
+  onSave, onRemove, onTest,
   isSaving, isTesting, isRemoving,
 }: ProviderKeyRowProps) {
   const meta = PROVIDERS[provider];
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [key, setKey] = useState("");
   const [showKey, setShowKey] = useState(false);
-  const [baseUrl, setBaseUrl] = useState(extra?.baseUrl || "");
-  const [model, setModel] = useState(extra?.model || "");
+  const [model, setModel] = useState(extra?.model || meta.models?.[0]?.value || "");
 
   const handleSave = () => {
-    if (provider === "custom") {
-      onSave(key, { baseUrl, model });
-    } else if (provider === "groq") {
-      onSave(key, { model });
-    } else {
-      onSave(key);
-    }
+    onSave(key, { model });
     setKey("");
   };
 
   const handleTest = () => {
     const testKey = key || (hasKey ? "***SAVED***" : "");
-    if (provider === "custom") {
-      onTest(testKey, { baseUrl, model });
-    } else if (provider === "groq") {
-      onTest(testKey, { model });
-    } else {
-      onTest(testKey);
-    }
+    onTest(testKey, { model });
   };
 
   return (
@@ -299,10 +229,8 @@ function ProviderKeyRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-sm">{meta.label}</span>
-            {isActive && (
-              <Badge variant="default" className="text-xs gap-1 h-5"><Zap className="w-2.5 h-2.5" />Active</Badge>
-            )}
-            {hasKey && !isActive && (
+            <Badge variant="default" className="text-xs gap-1 h-5"><Zap className="w-2.5 h-2.5" />Active</Badge>
+            {hasKey && (
               <Badge variant="secondary" className="text-xs gap-1 h-5"><CheckCircle className="w-2.5 h-2.5" />Configured</Badge>
             )}
           </div>
@@ -312,11 +240,6 @@ function ProviderKeyRow({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {!isActive && (
-            <Button variant="outline" size="sm" onClick={onActivate} className="text-xs h-7">
-              Set Active
-            </Button>
-          )}
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpanded(e => !e)}>
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </Button>
@@ -344,31 +267,6 @@ function ProviderKeyRow({
             </div>
           </div>
 
-          {/* Custom endpoint extra fields */}
-          {provider === "custom" && (
-            <>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Base URL</Label>
-                <Input
-                  placeholder="http://localhost:11434/v1"
-                  value={baseUrl}
-                  onChange={e => setBaseUrl(e.target.value)}
-                  className="text-sm font-mono"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Model Name</Label>
-                <Input
-                  placeholder="gpt-3.5-turbo / llama3 / mistral"
-                  value={model}
-                  onChange={e => setModel(e.target.value)}
-                  className="text-sm"
-                />
-              </div>
-            </>
-          )}
-
-          {/* Generic model selection if supported by metadata */}
           {meta.models && (
             <div className="space-y-1.5">
               <Label className="text-xs">Model</Label>
@@ -389,13 +287,13 @@ function ProviderKeyRow({
 
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="outline" onClick={handleTest}
-              disabled={isTesting || (!key && !hasKey && provider !== "custom")}
+              disabled={isTesting || (!key && !hasKey)}
               className="text-xs h-7">
               {isTesting ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CheckCircle className="w-3 h-3 mr-1" />}
               Test
             </Button>
             <Button size="sm" onClick={handleSave}
-              disabled={isSaving || (!key && provider !== "custom")}
+              disabled={isSaving || !key}
               className="text-xs h-7">
               {isSaving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Key className="w-3 h-3 mr-1" />}
               Save
@@ -425,7 +323,6 @@ interface ProvidersData {
   providers: Record<AiProvider, {
     hasKey: boolean;
     maskedKey: string | null;
-    baseUrl?: string | null;
     model?: string | null;
   }>;
 }
@@ -437,7 +334,6 @@ function AiProvidersSection() {
     queryKey: ["/api/settings/ai-providers"],
   });
 
-  const [pendingProvider, setPendingProvider] = useState<AiProvider | null>(null);
   const [savingProvider, setSavingProvider] = useState<AiProvider | null>(null);
   const [testingProvider, setTestingProvider] = useState<AiProvider | null>(null);
   const [removingProvider, setRemovingProvider] = useState<AiProvider | null>(null);
@@ -451,7 +347,7 @@ function AiProvidersSection() {
       queryClient.invalidateQueries({ queryKey: ["/api/settings/ai-providers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     },
-    onError: (_, body: any) => {
+    onError: () => {
       toast({ title: "Save failed", description: "Could not save settings.", variant: "destructive" });
     },
   });
@@ -461,7 +357,7 @@ function AiProvidersSection() {
       const res = await apiRequest("POST", "/api/settings/test-ai-provider", body);
       return res.json();
     },
-    onSuccess: (data: { valid: boolean; message: string; provider: string }) => {
+    onSuccess: (data: { valid: boolean; message: string }) => {
       if (data.valid) {
         toast({ title: "Connection successful!", description: data.message });
       } else {
@@ -475,30 +371,14 @@ function AiProvidersSection() {
     },
   });
 
-  const handleActivate = (provider: AiProvider) => {
-    setPendingProvider(provider);
-    updateMutation.mutate({ activeProvider: provider }, {
-      onSuccess: () => {
-        toast({ title: `${PROVIDERS[provider].label} is now active`, description: "All AI features will use this provider." });
-        setPendingProvider(null);
-      },
-    });
-  };
-
-  const handleSave = (provider: AiProvider, key: string, extra?: { baseUrl?: string; model?: string }) => {
+  const handleSave = (provider: AiProvider, key: string, extra?: { model?: string }) => {
     setSavingProvider(provider);
-    const fieldMap: Record<AiProvider, string> = {
-      gemini: "geminiApiKey", openai: "openaiApiKey", openrouter: "openrouterApiKey",
-      grok: "grokApiKey", groq: "groqApiKey", kimi: "kimiApiKey", anthropic: "anthropicApiKey", custom: "customApiKey",
-    };
-    const body: Record<string, any> = { [fieldMap[provider]]: key };
-    if (provider === "custom") {
-      if (extra?.baseUrl !== undefined) body.customApiBaseUrl = extra.baseUrl;
-      if (extra?.model !== undefined) body.customApiModel = extra.model;
-    }
+    const body: Record<string, any> = { groqApiKey: key };
+    if (extra?.model !== undefined) body.groqApiModel = extra.model;
+    
     updateMutation.mutate(body, {
       onSuccess: () => {
-        toast({ title: "API key saved", description: `${PROVIDERS[provider].label} key saved securely.` });
+        toast({ title: "API key saved", description: `Groq Cloud key saved securely.` });
         setSavingProvider(null);
       },
     });
@@ -506,28 +386,19 @@ function AiProvidersSection() {
 
   const handleRemove = (provider: AiProvider) => {
     setRemovingProvider(provider);
-    const fieldMap: Record<AiProvider, string> = {
-      gemini: "geminiApiKey", openai: "openaiApiKey", openrouter: "openrouterApiKey",
-      grok: "grokApiKey", groq: "groqApiKey", kimi: "kimiApiKey", anthropic: "anthropicApiKey", custom: "customApiKey",
-    };
-    updateMutation.mutate({ [fieldMap[provider]]: null }, {
+    updateMutation.mutate({ groqApiKey: null }, {
       onSuccess: () => {
-        toast({ title: "Key removed", description: `${PROVIDERS[provider].label} key has been removed.` });
+        toast({ title: "Key removed", description: `Groq Cloud key has been removed.` });
         setRemovingProvider(null);
       },
     });
   };
 
-  const handleTest = (provider: AiProvider, key: string, extra?: { baseUrl?: string; model?: string }) => {
+  const handleTest = (provider: AiProvider, key: string, extra?: { model?: string }) => {
     setTestingProvider(provider);
-    const fieldMap: Record<AiProvider, string> = {
-      gemini: "geminiApiKey", openai: "openaiApiKey", openrouter: "openrouterApiKey",
-      grok: "grokApiKey", groq: "groqApiKey", kimi: "kimiApiKey", anthropic: "anthropicApiKey", custom: "customApiKey",
-    };
     const body: Record<string, any> = {
       provider,
       apiKey: key === "***SAVED***" ? undefined : key,
-      ...(extra?.baseUrl && { baseUrl: extra.baseUrl }),
       ...(extra?.model && { model: extra.model }),
     };
     testMutation.mutate(body);
@@ -537,7 +408,6 @@ function AiProvidersSection() {
     return <div className="flex items-center gap-2 py-4"><Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm text-muted-foreground">Loading AI settings...</span></div>;
   }
 
-  const activeProvider = data?.activeProvider || "gemini";
   const providers = data?.providers;
 
   return (
@@ -547,10 +417,10 @@ function AiProvidersSection() {
         <Zap className="w-4 h-4 text-primary shrink-0" />
         <div>
           <p className="text-sm font-medium">
-            Active Provider: <span className="text-primary">{PROVIDERS[activeProvider]?.label || activeProvider}</span>
+            Active Provider: <span className="text-primary">Groq Cloud</span>
           </p>
           <p className="text-xs text-muted-foreground">
-            All AI features (quiz generation, grading, chatbot, proctoring) use this provider.
+            All AI features (quiz generation, grading, chatbot, proctoring) use Groq for ultra-fast performance.
           </p>
         </div>
       </div>
@@ -567,9 +437,8 @@ function AiProvidersSection() {
               provider={provider}
               hasKey={pData?.hasKey || false}
               maskedKey={pData?.maskedKey || null}
-              isActive={activeProvider === provider}
-              extra={{ baseUrl: pData?.baseUrl, model: pData?.model }}
-              onActivate={() => handleActivate(provider)}
+              isActive={true}
+              extra={{ model: pData?.model }}
               onSave={(key, extra) => handleSave(provider, key, extra)}
               onRemove={() => handleRemove(provider)}
               onTest={(key, extra) => handleTest(provider, key, extra)}
@@ -585,7 +454,7 @@ function AiProvidersSection() {
         <Shield className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
         <p className="text-xs text-muted-foreground">
           All API keys are stored securely server-side and never exposed to the browser.
-          If no key is configured for the active provider, the platform default (Gemini) will be used as fallback.
+          Groq Cloud is the exclusive AI provider for this project.
         </p>
       </div>
     </div>
@@ -599,7 +468,7 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold" data-testid="text-settings-title">Settings</h1>
+      <h1 className="text-2xl font-bold">Settings</h1>
 
       <PatternLockSection />
 
@@ -616,7 +485,7 @@ export default function SettingsPage() {
                   <Badge variant="secondary" className="text-xs">Admin</Badge>
                 </CardTitle>
                 <CardDescription>
-                  Choose and configure your AI provider. Supports Gemini, OpenAI, Grok, Groq Cloud, Kimi K2, OpenRouter, Anthropic, and custom endpoints.
+                  Configure your Groq Cloud API key. Groq provides ultra-fast inference for all AI features.
                 </CardDescription>
               </div>
             </div>

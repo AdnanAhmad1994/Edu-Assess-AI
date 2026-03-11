@@ -14,7 +14,7 @@ export const publicLinkPermissionEnum = pgEnum("public_link_permission", ["view"
 export const chatCommandStatusEnum = pgEnum("chat_command_status", ["pending", "executing", "completed", "failed"]);
 
 // Supported AI providers
-export const AI_PROVIDERS = ["gemini", "openai", "openrouter", "grok", "groq", "kimi", "anthropic", "custom"] as const;
+export const AI_PROVIDERS = ["groq"] as const;
 export type AiProvider = typeof AI_PROVIDERS[number];
 
 // Users table
@@ -26,20 +26,11 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   role: userRoleEnum("role").notNull().default("student"),
   avatarUrl: text("avatar_url"),
-  // AI provider keys
-  geminiApiKey: text("gemini_api_key"),
-  openaiApiKey: text("openai_api_key"),
-  openrouterApiKey: text("openrouter_api_key"),
-  grokApiKey: text("grok_api_key"),
+  // AI provider keys - Groq only
   groqApiKey: text("groq_api_key"),
   groqApiModel: text("groq_api_model"),
-  kimiApiKey: text("kimi_api_key"),
-  anthropicApiKey: text("anthropic_api_key"),
-  customApiKey: text("custom_api_key"),
-  customApiBaseUrl: text("custom_api_base_url"),
-  customApiModel: text("custom_api_model"),
   // Which provider is currently active
-  activeAiProvider: text("active_ai_provider").default("gemini"),
+  activeAiProvider: text("active_ai_provider").default("groq"),
   patternHash: text("pattern_hash"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
