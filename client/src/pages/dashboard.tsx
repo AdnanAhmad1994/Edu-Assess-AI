@@ -377,7 +377,7 @@ function InstructorDashboard() {
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <div>
               <CardTitle>AI Features</CardTitle>
-              <CardDescription>Powered by Kimi K2 · OpenRouter</CardDescription>
+              <CardDescription>Powered by Groq</CardDescription>
             </div>
           </CardHeader>
           <CardContent>

@@ -84,7 +84,7 @@ export function AppSidebar() {
           </div>
           <div>
             <h1 className="font-bold text-lg">EduAssess AI</h1>
-            <p className="text-xs text-muted-foreground">Powered by Gemini</p>
+            <p className="text-xs text-muted-foreground">Powered by Groq</p>
           </div>
         </div>
       </SidebarHeader>

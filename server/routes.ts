@@ -1209,16 +1209,25 @@ Respond in JSON format:
   app.post("/api/quiz/:id/submit", requireAuth, async (req, res) => {
     try {
       const { submissionId, answers } = req.body;
+      console.log(`[QUIZ_SUBMIT] Starting submission ${submissionId} for user ${req.session.userId}`);
+      
       const submission = await storage.getQuizSubmission(submissionId);
       if (!submission) {
+        console.error(`[QUIZ_SUBMIT] Submission ${submissionId} not found`);
         return res.status(404).json({ error: "Submission not found" });
       }
 
       const quizQuestions = await storage.getQuizQuestions(submission.quizId);
+      console.log(`[QUIZ_SUBMIT] Quiz ${submission.quizId} has ${quizQuestions.length} questions`);
+      
       let totalScore = 0;
+      const totalPoints = quizQuestions.reduce((sum, qq) => sum + (qq.question.points || 0), 0);
+      console.log(`[QUIZ_SUBMIT] Total points possible: ${totalPoints}`);
 
-      // Calculate total possible points based on all questions, not just answered ones
-      const totalPoints = quizQuestions.reduce((sum, qq) => sum + qq.question.points, 0);
+      if (!Array.isArray(answers)) {
+        console.error(`[QUIZ_SUBMIT] Answers is not an array for submission ${submissionId}`);
+        return res.status(400).json({ error: "Invalid answers format" });
+      }
 
       const gradedAnswers = [];
       for (const answer of answers) {
@@ -1227,8 +1236,9 @@ Respond in JSON format:
           const studentAns = String(answer.answer || "").trim().toLowerCase();
           const correctAns = String(qq.question.correctAnswer || "").trim().toLowerCase();
           const isCorrect = correctAns === studentAns;
-          const points = isCorrect ? qq.question.points : 0;
+          const points = isCorrect ? (qq.question.points || 0) : 0;
           totalScore += points;
+          
           gradedAnswers.push({
             questionId: answer.questionId,
             answer: answer.answer,
@@ -1239,6 +1249,7 @@ Respond in JSON format:
       }
 
       const percentage = totalPoints > 0 ? Math.round((totalScore / totalPoints) * 100) : 0;
+      console.log(`[QUIZ_SUBMIT] Submission ${submissionId} completed: Score=${totalScore}, Percentage=${percentage}%`);
 
       await storage.updateQuizSubmission(submissionId, {
         answers: gradedAnswers,
@@ -1252,7 +1263,7 @@ Respond in JSON format:
 
       res.json({ submissionId, score: totalScore, totalPoints, percentage });
     } catch (error) {
-      console.error("Submit quiz error:", error);
+      console.error("[QUIZ_SUBMIT] Error submitting quiz:", error);
       res.status(500).json({ error: "Failed to submit quiz" });
     }
   });

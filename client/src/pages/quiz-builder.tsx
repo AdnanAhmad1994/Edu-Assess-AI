@@ -595,7 +595,7 @@ export default function QuizBuilderPage() {
                       <div className="flex-1">
                         <h3 className="font-semibold mb-1">AI Question Generator</h3>
                         <p className="text-sm text-muted-foreground mb-4">
-                          Paste your lecture content, notes, or describe a topic. Gemini will generate relevant questions automatically.
+                          Paste your lecture content, notes, or describe a topic. Groq will generate relevant questions automatically.
                         </p>
                         <Textarea
                           placeholder="Paste lecture content, notes, or describe the topic you want questions about..."
