@@ -110,24 +110,14 @@ function AdminDashboard() {
     <div className="space-y-8 fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
+              <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground mt-1">
             Welcome back! Here's an overview of your assessments.
           </p>
         </div>
-        <div className="flex gap-3">
-          <Button onClick={() => setLocation("/quizzes/new")} data-testid="button-new-quiz">
-            <Plus className="w-4 h-4 mr-2" />
-            New Quiz
-          </Button>
-          <Button variant="outline" onClick={() => setLocation("/assignments?action=create")} data-testid="button-new-assignment">
-            <Plus className="w-4 h-4 mr-2" />
-            New Assignment
-          </Button>
-        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
         <StatCard
           title="Active Courses"
           value={stats?.totalCourses || 0}
@@ -135,22 +125,6 @@ function AdminDashboard() {
           icon={BookOpen}
           color="primary"
           onClick={() => setLocation("/courses")}
-        />
-        <StatCard
-          title="Published Quizzes"
-          value={stats?.totalQuizzes || 0}
-          description="Ready for students"
-          icon={FileQuestion}
-          color="accent"
-          onClick={() => setLocation("/quizzes")}
-        />
-        <StatCard
-          title="Pending Grading"
-          value={stats?.pendingGrading || 0}
-          description="Submissions to review"
-          icon={AlertTriangle}
-          color="warning"
-          onClick={() => setLocation("/assignments")}
         />
         <StatCard
           title="Students Enrolled"
