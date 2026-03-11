@@ -345,6 +345,37 @@ export async function registerRoutes(
     res.json(sanitizeUser(user));
   });
 
+  // Database Debugging Endpoint (Temporary)
+  app.get("/api/debug-db", async (req, res) => {
+    try {
+      const { db, pool } = require("./db");
+      const hasDb = !!db;
+      const hasPool = !!pool;
+      let testQuery = null;
+      let errStr = null;
+
+      if (pool) {
+        try {
+          const result = await pool.query("SELECT 1 as auth_check");
+          testQuery = result.rows[0];
+        } catch (e: any) {
+          errStr = e.message;
+        }
+      }
+
+      res.json({
+        hasDatabaseUrl: !!process.env.DATABASE_URL,
+        databaseHost: process.env.DATABASE_URL ? process.env.DATABASE_URL.split('@')[1]?.split('/')[0] : null,
+        drizzleInitialized: hasDb,
+        poolInitialized: hasPool,
+        testQuerySuccess: testQuery,
+        error: errStr
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "Fatal debug error: " + e.message });
+    }
+  });
+
   // Admin - User Management
   app.get("/api/users", requireAdmin, async (req, res) => {
     try {
