@@ -683,7 +683,10 @@ export async function registerRoutes(
   // Dashboard
   app.get("/api/dashboard/stats", requireAuth, async (req, res) => {
     try {
-      const stats = await storage.getDashboardStats(req.session.userId!);
+      const user = await storage.getUser(req.session.userId!);
+      // Admins should see stats across all courses, not just those they own
+      const instructorIdToQuery = user?.role === "admin" ? undefined : req.session.userId!;
+      const stats = await storage.getDashboardStats(instructorIdToQuery);
       res.json(stats);
     } catch (error) {
       console.error("Dashboard stats error:", error);

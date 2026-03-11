@@ -116,7 +116,7 @@ export interface IStorage {
   markPasswordResetTokenUsed(token: string): Promise<void>;
 
   // Stats
-  getDashboardStats(instructorId: string): Promise<{
+  getDashboardStats(instructorId?: string): Promise<{
     totalCourses: number;
     totalQuizzes: number;
     totalAssignments: number;
@@ -263,6 +263,7 @@ export class MemStorage implements IStorage {
       ...insertCourse,
       id,
       description: insertCourse.description ?? null,
+      instructorId: insertCourse.instructorId as string, // Guaranteed by router
       createdAt: new Date(),
     };
     this.courses.set(id, course);
@@ -1172,7 +1173,13 @@ export class DatabaseStorage implements IStorage {
     return instructorId ? rows.filter(c => c.instructorId === instructorId) : rows;
   }
   async getCourse(id: string) { return (await db!.select().from(courses).where(eq(courses.id, id)))[0]; }
-  async createCourse(data: InsertCourse) { return (await db!.insert(courses).values({ ...data, id: randomUUID() }).returning())[0]; }
+  async createCourse(data: InsertCourse) { 
+    return (await db!.insert(courses).values({ 
+      ...data, 
+      id: randomUUID(), 
+      instructorId: data.instructorId as string 
+    }).returning())[0]; 
+  }
   async updateCourse(id: string, data: Partial<InsertCourse>) { return (await db!.update(courses).set(data).where(eq(courses.id, id)).returning())[0]; }
   async deleteCourse(id: string) { await db!.delete(courses).where(eq(courses.id, id)); }
 
@@ -1316,7 +1323,7 @@ export class DatabaseStorage implements IStorage {
   async updateChatCommand(id: string, data: Partial<ChatCommand>) { return (await db!.update(chatCommands).set(data).where(eq(chatCommands.id, id)).returning())[0]; }
 
   // Dashboard Stats
-  async getDashboardStats(instructorId: string) {
+  async getDashboardStats(instructorId?: string) {
     // Basic implementation to satisfy interface
     const allCourses = await this.getCourses(instructorId);
     const allQuizzes = await this.getQuizzes();
