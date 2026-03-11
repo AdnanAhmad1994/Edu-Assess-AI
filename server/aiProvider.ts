@@ -100,6 +100,21 @@ export const PROVIDER_CONFIGS: Record<AiProvider, ProviderConfig> = {
     placeholder: "xai-...",
     keyPrefix: "xai-",
   },
+  groq: {
+    label: "Groq Cloud",
+    description: "Ultra-fast inference for Llama 3, Mixtral, and more",
+    docsUrl: "https://console.groq.com/keys",
+    defaultModel: "llama-3.3-70b-versatile",
+    models: [
+      { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B (Recommended)" },
+      { value: "llama-3.1-70b-versatile", label: "Llama 3.1 70B" },
+      { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant" },
+      { value: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
+      { value: "gemma2-9b-it", label: "Gemma 2 9B" },
+    ],
+    placeholder: "gsk_...",
+    keyPrefix: "gsk_",
+  },
   kimi: {
     label: "Kimi K2 (Moonshot AI)",
     description: "Kimi K2 — 1T MoE model with agentic capabilities",
@@ -158,6 +173,8 @@ export async function generateWithProvider(
     openaiApiKey?: string | null;
     openrouterApiKey?: string | null;
     grokApiKey?: string | null;
+    groqApiKey?: string | null;
+    groqApiModel?: string | null;
     kimiApiKey?: string | null;
     anthropicApiKey?: string | null;
     customApiKey?: string | null;
@@ -214,6 +231,7 @@ export async function generateWithProvider(
     case "openai":
     case "openrouter":
     case "grok":
+    case "groq":
     case "kimi":
     case "custom": {
       // All these use OpenAI-compatible REST API
@@ -230,6 +248,10 @@ export async function generateWithProvider(
       } else if (provider === "grok") {
         apiKey = userRecord?.grokApiKey || "";
         baseUrl = "https://api.x.ai/v1";
+      } else if (provider === "groq") {
+        apiKey = userRecord?.groqApiKey || "";
+        baseUrl = "https://api.groq.com/openai/v1";
+        model = options.model || userRecord?.groqApiModel || providerConfig.defaultModel;
       } else if (provider === "kimi") {
         apiKey = userRecord?.kimiApiKey || "";
         baseUrl = "https://api.moonshot.ai/v1";
@@ -350,6 +372,7 @@ export async function testProviderKey(
     openaiApiKey?: string;
     openrouterApiKey?: string;
     grokApiKey?: string;
+    groqApiKey?: string;
     kimiApiKey?: string;
     anthropicApiKey?: string;
     customApiKey?: string;

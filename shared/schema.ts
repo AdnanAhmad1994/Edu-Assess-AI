@@ -7,14 +7,14 @@ import { z } from "zod";
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["admin", "instructor", "student"]);
 export const questionTypeEnum = pgEnum("question_type", ["mcq", "true_false", "short_answer", "essay", "fill_blank", "matching"]);
-export const assessmentStatusEnum = pgEnum("assessment_status", ["draft", "published", "closed"]);
+export const assessmentStatusEnum = pgEnum("assessment_status", ["draft", "published", "closed", "archived"]);
 export const submissionStatusEnum = pgEnum("submission_status", ["in_progress", "submitted", "graded"]);
 export const violationTypeEnum = pgEnum("violation_type", ["tab_switch", "copy_paste", "multiple_faces", "no_face", "phone_detected", "unauthorized_person", "looking_away", "suspicious_behavior"]);
 export const publicLinkPermissionEnum = pgEnum("public_link_permission", ["view", "attempt"]);
 export const chatCommandStatusEnum = pgEnum("chat_command_status", ["pending", "executing", "completed", "failed"]);
 
 // Supported AI providers
-export const AI_PROVIDERS = ["gemini", "openai", "openrouter", "grok", "kimi", "anthropic", "custom"] as const;
+export const AI_PROVIDERS = ["gemini", "openai", "openrouter", "grok", "groq", "kimi", "anthropic", "custom"] as const;
 export type AiProvider = typeof AI_PROVIDERS[number];
 
 // Users table
@@ -31,6 +31,8 @@ export const users = pgTable("users", {
   openaiApiKey: text("openai_api_key"),
   openrouterApiKey: text("openrouter_api_key"),
   grokApiKey: text("grok_api_key"),
+  groqApiKey: text("groq_api_key"),
+  groqApiModel: text("groq_api_model"),
   kimiApiKey: text("kimi_api_key"),
   anthropicApiKey: text("anthropic_api_key"),
   customApiKey: text("custom_api_key"),
@@ -64,6 +66,7 @@ export const lectures = pgTable("lectures", {
   fileType: text("file_type"),
   summary: text("summary"),
   keyPoints: jsonb("key_points").$type<string[]>(),
+  videoUrl: text("video_url"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 

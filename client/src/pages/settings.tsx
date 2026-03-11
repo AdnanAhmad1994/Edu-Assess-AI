@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
   Key, CheckCircle, XCircle, Loader2, Eye, EyeOff, Trash2, Sparkles,
@@ -17,7 +18,7 @@ import PatternLockGrid from "@/components/pattern-lock-grid";
 
 // ─── Provider metadata ────────────────────────────────────────────────────────
 
-type AiProvider = "gemini" | "openai" | "openrouter" | "grok" | "kimi" | "anthropic" | "custom";
+type AiProvider = "gemini" | "openai" | "openrouter" | "grok" | "groq" | "kimi" | "anthropic" | "custom";
 
 interface ProviderMeta {
   label: string;
@@ -26,6 +27,7 @@ interface ProviderMeta {
   placeholder: string;
   color: string;           // tailwind bg color class for the icon chip
   logo: string;            // emoji / text logo
+  models?: { value: string; label: string }[];
 }
 
 const PROVIDERS: Record<AiProvider, ProviderMeta> = {
@@ -60,6 +62,20 @@ const PROVIDERS: Record<AiProvider, ProviderMeta> = {
     placeholder: "xai-...",
     color: "bg-slate-500/10 text-slate-600",
     logo: "X",
+  },
+  groq: {
+    label: "Groq Cloud",
+    description: "Ultra-fast Llama 3 & Mixtral inference",
+    docsUrl: "https://console.groq.com/keys",
+    placeholder: "gsk_...",
+    color: "bg-orange-500/10 text-orange-600",
+    logo: "G",
+    models: [
+      { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B Versatile" },
+      { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant" },
+      { value: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
+      { value: "gemma2-9b-it", label: "Gemma 2 9B" },
+    ],
   },
   kimi: {
     label: "Kimi K2 (Moonshot AI)",
@@ -254,6 +270,8 @@ function ProviderKeyRow({
   const handleSave = () => {
     if (provider === "custom") {
       onSave(key, { baseUrl, model });
+    } else if (provider === "groq") {
+      onSave(key, { model });
     } else {
       onSave(key);
     }
@@ -264,6 +282,8 @@ function ProviderKeyRow({
     const testKey = key || (hasKey ? "***SAVED***" : "");
     if (provider === "custom") {
       onTest(testKey, { baseUrl, model });
+    } else if (provider === "groq") {
+      onTest(testKey, { model });
     } else {
       onTest(testKey);
     }
@@ -346,6 +366,25 @@ function ProviderKeyRow({
                 />
               </div>
             </>
+          )}
+
+          {/* Generic model selection if supported by metadata */}
+          {meta.models && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Model</Label>
+              <Select value={model} onValueChange={setModel}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Select model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {meta.models.map(m => (
+                    <SelectItem key={m.value} value={m.value} className="text-xs">
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -450,7 +489,7 @@ function AiProvidersSection() {
     setSavingProvider(provider);
     const fieldMap: Record<AiProvider, string> = {
       gemini: "geminiApiKey", openai: "openaiApiKey", openrouter: "openrouterApiKey",
-      grok: "grokApiKey", kimi: "kimiApiKey", anthropic: "anthropicApiKey", custom: "customApiKey",
+      grok: "grokApiKey", groq: "groqApiKey", kimi: "kimiApiKey", anthropic: "anthropicApiKey", custom: "customApiKey",
     };
     const body: Record<string, any> = { [fieldMap[provider]]: key };
     if (provider === "custom") {
@@ -469,7 +508,7 @@ function AiProvidersSection() {
     setRemovingProvider(provider);
     const fieldMap: Record<AiProvider, string> = {
       gemini: "geminiApiKey", openai: "openaiApiKey", openrouter: "openrouterApiKey",
-      grok: "grokApiKey", kimi: "kimiApiKey", anthropic: "anthropicApiKey", custom: "customApiKey",
+      grok: "grokApiKey", groq: "groqApiKey", kimi: "kimiApiKey", anthropic: "anthropicApiKey", custom: "customApiKey",
     };
     updateMutation.mutate({ [fieldMap[provider]]: null }, {
       onSuccess: () => {
@@ -483,7 +522,7 @@ function AiProvidersSection() {
     setTestingProvider(provider);
     const fieldMap: Record<AiProvider, string> = {
       gemini: "geminiApiKey", openai: "openaiApiKey", openrouter: "openrouterApiKey",
-      grok: "grokApiKey", kimi: "kimiApiKey", anthropic: "anthropicApiKey", custom: "customApiKey",
+      grok: "grokApiKey", groq: "groqApiKey", kimi: "kimiApiKey", anthropic: "anthropicApiKey", custom: "customApiKey",
     };
     const body: Record<string, any> = {
       provider,
@@ -577,7 +616,7 @@ export default function SettingsPage() {
                   <Badge variant="secondary" className="text-xs">Admin</Badge>
                 </CardTitle>
                 <CardDescription>
-                  Choose and configure your AI provider. Supports Gemini, OpenAI, Grok, Kimi K2, OpenRouter, Anthropic, and custom endpoints.
+                  Choose and configure your AI provider. Supports Gemini, OpenAI, Grok, Groq Cloud, Kimi K2, OpenRouter, Anthropic, and custom endpoints.
                 </CardDescription>
               </div>
             </div>

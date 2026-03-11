@@ -63,7 +63,7 @@ function sanitizeUser(user: User) {
   const {
     password: _pw, patternHash: _ph,
     geminiApiKey: _g, openaiApiKey: _oa, openrouterApiKey: _or,
-    grokApiKey: _gk, kimiApiKey: _ki, anthropicApiKey: _an,
+    grokApiKey: _gk, groqApiKey: _gq, groqApiModel: _gam, kimiApiKey: _ki, anthropicApiKey: _an,
     customApiKey: _cu,
     ...safe
   } = user;
@@ -73,6 +73,7 @@ function sanitizeUser(user: User) {
     hasOpenaiKey: !!user.openaiApiKey,
     hasOpenrouterKey: !!user.openrouterApiKey,
     hasGrokKey: !!user.grokApiKey,
+    hasGroqKey: !!user.groqApiKey,
     hasKimiKey: !!user.kimiApiKey,
     hasAnthropicKey: !!user.anthropicApiKey,
     hasCustomKey: !!user.customApiKey,
@@ -114,7 +115,7 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  
+
   // Session store: PostgreSQL when DATABASE_URL is set (production), else in-memory (local dev)
   let sessionStore: session.Store;
   if (process.env.DATABASE_URL) {
@@ -165,7 +166,8 @@ export async function registerRoutes(
   const envOpenrouterKey = process.env.OPENROUTER_API_KEY;
   const envGeminiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
   const envOpenaiKey = process.env.OPENAI_API_KEY;
-  if (adminUser && (envOpenrouterKey || envGeminiKey || envOpenaiKey)) {
+  const envGroqKey = process.env.GROQ_API_KEY;
+  if (adminUser && (envOpenrouterKey || envGeminiKey || envOpenaiKey || envGroqKey)) {
     const keyUpdate: Partial<typeof adminUser> = {};
     if (envOpenrouterKey) {
       keyUpdate.openrouterApiKey = envOpenrouterKey;
@@ -176,6 +178,9 @@ export async function registerRoutes(
     } else if (envOpenaiKey) {
       keyUpdate.openaiApiKey = envOpenaiKey;
       keyUpdate.activeAiProvider = "openai";
+    } else if (envGroqKey) {
+      keyUpdate.groqApiKey = envGroqKey;
+      keyUpdate.activeAiProvider = "groq";
     }
     await storage.updateUser(adminUser.id, keyUpdate);
     console.log(`AI provider auto-configured from env: ${keyUpdate.activeAiProvider}`);
@@ -198,15 +203,15 @@ export async function registerRoutes(
       if (existingUsername) {
         return res.status(400).json({ error: "Username already exists" });
       }
-      
+
       const existingEmail = await storage.getUserByEmail(data.email);
       if (existingEmail) {
         return res.status(400).json({ error: "Email already exists" });
       }
-      
+
       const hashedPassword = await bcrypt.hash(data.password, 10);
       const user = await storage.createUser({ ...data, password: hashedPassword });
-      
+
       req.session.userId = user.id;
       res.status(201).json(sanitizeUser(user));
     } catch (error) {
@@ -378,7 +383,7 @@ export async function registerRoutes(
   app.patch("/api/users/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const existing = await storage.getUser(id);
+      const existing = await storage.getUser(id as string);
       if (!existing) {
         return res.status(404).json({ error: "User not found" });
       }
@@ -391,7 +396,7 @@ export async function registerRoutes(
         updates.password = await bcrypt.hash(req.body.password, 10);
       }
 
-      const updated = await storage.updateUser(id, updates);
+      const updated = await storage.updateUser(id as string, updates);
       if (!updated) {
         return res.status(404).json({ error: "User not found" });
       }
@@ -408,11 +413,11 @@ export async function registerRoutes(
       if (id === req.session.userId) {
         return res.status(400).json({ error: "Cannot delete your own account" });
       }
-      const existing = await storage.getUser(id);
+      const existing = await storage.getUser(id as string);
       if (!existing) {
         return res.status(404).json({ error: "User not found" });
       }
-      await storage.deleteUser(id);
+      await storage.deleteUser(id as string);
       res.json({ message: "User deleted successfully" });
     } catch (error) {
       console.error("Delete user error:", error);
@@ -450,13 +455,18 @@ export async function registerRoutes(
       res.json({
         activeProvider: user.activeAiProvider || "gemini",
         providers: {
-          gemini:      { hasKey: !!user.geminiApiKey,      maskedKey: mask(user.geminiApiKey) },
-          openai:      { hasKey: !!user.openaiApiKey,      maskedKey: mask(user.openaiApiKey) },
-          openrouter:  { hasKey: !!user.openrouterApiKey,  maskedKey: mask(user.openrouterApiKey) },
-          grok:        { hasKey: !!user.grokApiKey,        maskedKey: mask(user.grokApiKey) },
-          kimi:        { hasKey: !!user.kimiApiKey,        maskedKey: mask(user.kimiApiKey) },
-          anthropic:   { hasKey: !!user.anthropicApiKey,   maskedKey: mask(user.anthropicApiKey) },
-          custom:      {
+          gemini: { hasKey: !!user.geminiApiKey, maskedKey: mask(user.geminiApiKey) },
+          openai: { hasKey: !!user.openaiApiKey, maskedKey: mask(user.openaiApiKey) },
+          openrouter: { hasKey: !!user.openrouterApiKey, maskedKey: mask(user.openrouterApiKey) },
+          grok: { hasKey: !!user.grokApiKey, maskedKey: mask(user.grokApiKey) },
+          groq: {
+            hasKey: !!user.groqApiKey,
+            maskedKey: mask(user.groqApiKey),
+            model: user.groqApiModel || null,
+          },
+          kimi: { hasKey: !!user.kimiApiKey, maskedKey: mask(user.kimiApiKey) },
+          anthropic: { hasKey: !!user.anthropicApiKey, maskedKey: mask(user.anthropicApiKey) },
+          custom: {
             hasKey: !!user.customApiKey || !!user.customApiBaseUrl,
             maskedKey: mask(user.customApiKey),
             baseUrl: user.customApiBaseUrl || null,
@@ -476,7 +486,7 @@ export async function registerRoutes(
       const {
         activeProvider,
         geminiApiKey, openaiApiKey, openrouterApiKey,
-        grokApiKey, kimiApiKey, anthropicApiKey,
+        grokApiKey, groqApiKey, groqApiModel, kimiApiKey, anthropicApiKey,
         customApiKey, customApiBaseUrl, customApiModel,
       } = req.body;
 
@@ -486,16 +496,18 @@ export async function registerRoutes(
       }
 
       const updateData: Partial<User> = {};
-      if (activeProvider !== undefined)      updateData.activeAiProvider   = activeProvider;
-      if (geminiApiKey !== undefined)        updateData.geminiApiKey       = geminiApiKey || null;
-      if (openaiApiKey !== undefined)        updateData.openaiApiKey       = openaiApiKey || null;
-      if (openrouterApiKey !== undefined)    updateData.openrouterApiKey   = openrouterApiKey || null;
-      if (grokApiKey !== undefined)          updateData.grokApiKey         = grokApiKey || null;
-      if (kimiApiKey !== undefined)          updateData.kimiApiKey         = kimiApiKey || null;
-      if (anthropicApiKey !== undefined)     updateData.anthropicApiKey    = anthropicApiKey || null;
-      if (customApiKey !== undefined)        updateData.customApiKey       = customApiKey || null;
-      if (customApiBaseUrl !== undefined)    updateData.customApiBaseUrl   = customApiBaseUrl || null;
-      if (customApiModel !== undefined)      updateData.customApiModel     = customApiModel || null;
+      if (activeProvider !== undefined) updateData.activeAiProvider = activeProvider;
+      if (geminiApiKey !== undefined) updateData.geminiApiKey = geminiApiKey || null;
+      if (openaiApiKey !== undefined) updateData.openaiApiKey = openaiApiKey || null;
+      if (openrouterApiKey !== undefined) updateData.openrouterApiKey = openrouterApiKey || null;
+      if (grokApiKey !== undefined) updateData.grokApiKey = grokApiKey || null;
+      if (groqApiKey !== undefined) updateData.groqApiKey = groqApiKey || null;
+      if (groqApiModel !== undefined) updateData.groqApiModel = groqApiModel || null;
+      if (kimiApiKey !== undefined) updateData.kimiApiKey = kimiApiKey || null;
+      if (anthropicApiKey !== undefined) updateData.anthropicApiKey = anthropicApiKey || null;
+      if (customApiKey !== undefined) updateData.customApiKey = customApiKey || null;
+      if (customApiBaseUrl !== undefined) updateData.customApiBaseUrl = customApiBaseUrl || null;
+      if (customApiModel !== undefined) updateData.customApiModel = customApiModel || null;
 
       const updated = await storage.updateUser(req.session.userId!, updateData);
       if (!updated) return res.status(404).json({ error: "User not found" });
@@ -515,16 +527,17 @@ export async function registerRoutes(
       if (!provider) return res.status(400).json({ error: "provider is required" });
 
       const keyFields: Record<string, string | undefined> = {};
-      if (provider === "gemini")     keyFields.geminiApiKey     = apiKey;
-      if (provider === "openai")     keyFields.openaiApiKey     = apiKey;
+      if (provider === "gemini") keyFields.geminiApiKey = apiKey;
+      if (provider === "openai") keyFields.openaiApiKey = apiKey;
       if (provider === "openrouter") keyFields.openrouterApiKey = apiKey;
-      if (provider === "grok")       keyFields.grokApiKey       = apiKey;
-      if (provider === "kimi")       keyFields.kimiApiKey       = apiKey;
-      if (provider === "anthropic")  keyFields.anthropicApiKey  = apiKey;
+      if (provider === "grok") keyFields.grokApiKey = apiKey;
+      if (provider === "groq") keyFields.groqApiKey = apiKey;
+      if (provider === "kimi") keyFields.kimiApiKey = apiKey;
+      if (provider === "anthropic") keyFields.anthropicApiKey = apiKey;
       if (provider === "custom") {
-        keyFields.customApiKey     = apiKey;
+        keyFields.customApiKey = apiKey;
         keyFields.customApiBaseUrl = baseUrl;
-        keyFields.customApiModel   = model;
+        keyFields.customApiModel = model;
       }
 
       const result = await testProviderKey(provider as AiProvider, keyFields);
@@ -636,7 +649,7 @@ export async function registerRoutes(
     try {
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(401).json({ error: "User not found" });
-      
+
       if (user.role === "student") {
         const enrollments = await storage.getEnrollments(undefined, user.id);
         const courses = [];
@@ -646,7 +659,7 @@ export async function registerRoutes(
         }
         return res.json(courses);
       }
-      
+
       const courses = await storage.getCourses(user.role === "admin" ? undefined : user.id);
       res.json(courses);
     } catch (error) {
@@ -721,7 +734,7 @@ export async function registerRoutes(
       }
 
       if (validCourses.length === 0) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: "No valid courses found in file. Required columns: name, code, semester",
           details: errors.slice(0, 10)
         });
@@ -756,7 +769,7 @@ export async function registerRoutes(
 
   app.get("/api/courses/:id", requireAuth, async (req, res) => {
     try {
-      const course = await storage.getCourse(req.params.id);
+      const course = await storage.getCourse(req.params.id as string);
       if (!course) {
         return res.status(404).json({ error: "Course not found" });
       }
@@ -861,7 +874,7 @@ export async function registerRoutes(
 
   app.post("/api/lectures/:id/generate-summary", requireInstructor, async (req, res) => {
     try {
-      const lecture = await storage.getLecture(req.params.id);
+      const lecture = await storage.getLecture(req.params.id as string);
       if (!lecture) {
         return res.status(404).json({ error: "Lecture not found" });
       }
@@ -909,7 +922,7 @@ Respond in JSON format:
     try {
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(401).json({ error: "User not found" });
-      
+
       if (user.role === "student") {
         const enrollments = await storage.getEnrollments(undefined, user.id);
         const quizzes = [];
@@ -919,7 +932,7 @@ Respond in JSON format:
         }
         return res.json(quizzes);
       }
-      
+
       const courses = await storage.getCourses(user.role === "admin" ? undefined : user.id);
       const quizzes = [];
       for (const course of courses) {
@@ -937,9 +950,9 @@ Respond in JSON format:
     try {
       const { questions: questionInputs, ...quizData } = req.body;
       const validatedQuiz = insertQuizSchema.parse(quizData);
-      
+
       const quiz = await storage.createQuiz(validatedQuiz);
-      
+
       if (questionInputs && Array.isArray(questionInputs)) {
         for (let i = 0; i < questionInputs.length; i++) {
           const q = questionInputs[i];
@@ -954,7 +967,7 @@ Respond in JSON format:
             aiGenerated: q.id?.startsWith("ai-") || q.id?.startsWith("file-ai-") || false,
             imageUrl: q.imageUrl || null,
           });
-          
+
           await storage.addQuizQuestion({
             quizId: quiz.id,
             questionId: question.id,
@@ -962,7 +975,7 @@ Respond in JSON format:
           });
         }
       }
-      
+
       res.status(201).json(quiz);
     } catch (error) {
       console.error("Create quiz error:", error);
@@ -973,7 +986,7 @@ Respond in JSON format:
   // GET single quiz by id
   app.get("/api/quizzes/:id", requireAuth, async (req, res) => {
     try {
-      const quiz = await storage.getQuiz(req.params.id);
+      const quiz = await storage.getQuiz(req.params.id as string);
       if (!quiz) return res.status(404).json({ error: "Quiz not found" });
       res.json(quiz);
     } catch (error) {
@@ -984,9 +997,9 @@ Respond in JSON format:
   // PUT update quiz by id
   app.put("/api/quizzes/:id", requireInstructor, async (req, res) => {
     try {
-      const quiz = await storage.getQuiz(req.params.id);
+      const quiz = await storage.getQuiz(req.params.id as string);
       if (!quiz) return res.status(404).json({ error: "Quiz not found" });
-      const updated = await storage.updateQuiz(req.params.id, req.body);
+      const updated = await storage.updateQuiz(req.params.id as string, req.body);
       res.json(updated);
     } catch (error) {
       res.status(500).json({ error: "Failed to update quiz" });
@@ -1020,13 +1033,13 @@ Respond in JSON format:
   // POST /api/quizzes/:id/questions — link an existing question to a quiz
   app.post("/api/quizzes/:id/questions", requireInstructor, async (req, res) => {
     try {
-      const quiz = await storage.getQuiz(req.params.id);
+      const quiz = await storage.getQuiz(req.params.id as string);
       if (!quiz) return res.status(404).json({ error: "Quiz not found" });
       const { questionId, orderIndex } = req.body;
       if (!questionId) return res.status(400).json({ error: "questionId required" });
-      const existing = await storage.getQuizQuestions(req.params.id);
+      const existing = await storage.getQuizQuestions(req.params.id as string);
       await storage.addQuizQuestion({
-        quizId: req.params.id,
+        quizId: req.params.id as string,
         questionId,
         orderIndex: orderIndex ?? existing.length,
       });
@@ -1038,7 +1051,7 @@ Respond in JSON format:
 
   app.patch("/api/quizzes/:id/publish", requireInstructor, async (req, res) => {
     try {
-      const quiz = await storage.updateQuiz(req.params.id, { status: "published" });
+      const quiz = await storage.updateQuiz(req.params.id as string, { status: "published" });
       if (!quiz) {
         return res.status(404).json({ error: "Quiz not found" });
       }
@@ -1050,11 +1063,12 @@ Respond in JSON format:
 
   app.get("/api/quiz/:id/take", requireAuth, async (req, res) => {
     try {
-      const quiz = await storage.getQuiz(req.params.id);
+      const quizId = req.params.id as string;
+      const quiz = await storage.getQuiz(quizId);
       if (!quiz) {
         return res.status(404).json({ error: "Quiz not found" });
       }
-      
+
       const quizQuestions = await storage.getQuizQuestions(quiz.id);
       const questions = quizQuestions.map(qq => ({
         id: qq.question.id,
@@ -1064,11 +1078,11 @@ Respond in JSON format:
         points: qq.question.points,
         imageUrl: qq.question.imageUrl || null,
       }));
-      
+
       if (quiz.randomizeQuestions) {
         questions.sort(() => Math.random() - 0.5);
       }
-      
+
       res.json({ ...quiz, questions });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch quiz" });
@@ -1077,17 +1091,18 @@ Respond in JSON format:
 
   app.post("/api/quiz/:id/start", requireAuth, async (req, res) => {
     try {
-      const quiz = await storage.getQuiz(req.params.id);
+      const quizId = req.params.id as string;
+      const quiz = await storage.getQuiz(quizId);
       if (!quiz) {
         return res.status(404).json({ error: "Quiz not found" });
       }
-      
+
       const submission = await storage.createQuizSubmission({
         quizId: quiz.id,
         studentId: req.session.userId!,
         status: "in_progress",
       });
-      
+
       res.json({ submissionId: submission.id });
     } catch (error) {
       res.status(500).json({ error: "Failed to start quiz" });
@@ -1101,19 +1116,22 @@ Respond in JSON format:
       if (!submission) {
         return res.status(404).json({ error: "Submission not found" });
       }
-      
+
       const quizQuestions = await storage.getQuizQuestions(submission.quizId);
       let totalScore = 0;
-      let totalPoints = 0;
-      
+
+      // Calculate total possible points based on all questions, not just answered ones
+      const totalPoints = quizQuestions.reduce((sum, qq) => sum + qq.question.points, 0);
+
       const gradedAnswers = [];
       for (const answer of answers) {
         const qq = quizQuestions.find(q => q.question.id === answer.questionId);
         if (qq) {
-          const isCorrect = qq.question.correctAnswer.toLowerCase() === answer.answer.toLowerCase();
+          const studentAns = String(answer.answer || "").trim().toLowerCase();
+          const correctAns = String(qq.question.correctAnswer || "").trim().toLowerCase();
+          const isCorrect = correctAns === studentAns;
           const points = isCorrect ? qq.question.points : 0;
           totalScore += points;
-          totalPoints += qq.question.points;
           gradedAnswers.push({
             questionId: answer.questionId,
             answer: answer.answer,
@@ -1122,9 +1140,9 @@ Respond in JSON format:
           });
         }
       }
-      
+
       const percentage = totalPoints > 0 ? Math.round((totalScore / totalPoints) * 100) : 0;
-      
+
       await storage.updateQuizSubmission(submissionId, {
         answers: gradedAnswers,
         score: totalScore,
@@ -1134,7 +1152,7 @@ Respond in JSON format:
         submittedAt: new Date(),
         gradedAt: new Date(),
       });
-      
+
       res.json({ submissionId, score: totalScore, totalPoints, percentage });
     } catch (error) {
       console.error("Submit quiz error:", error);
@@ -1147,7 +1165,7 @@ Respond in JSON format:
     try {
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(401).json({ error: "User not found" });
-      
+
       if (user.role === "student") {
         const enrollments = await storage.getEnrollments(undefined, user.id);
         const assignments = [];
@@ -1157,7 +1175,7 @@ Respond in JSON format:
         }
         return res.json(assignments);
       }
-      
+
       const courses = await storage.getCourses(user.role === "admin" ? undefined : user.id);
       const assignments = [];
       for (const course of courses) {
@@ -1349,9 +1367,9 @@ Respond in JSON format:
           role: "user",
           content: isImage
             ? [
-                { type: "image_url", image_url: { url: dataUri } },
-                { type: "text", text: promptText },
-              ]
+              { type: "image_url", image_url: { url: dataUri } },
+              { type: "text", text: promptText },
+            ]
             : promptText,
         }],
       }, aiUser);
@@ -1506,18 +1524,18 @@ Return ONLY a JSON array of violations found (empty array if none):
     try {
       const { id } = req.params;
       const { permission, requiredFields } = req.body;
-      
-      const quiz = await storage.getQuiz(id);
+
+      const quiz = await storage.getQuiz(id as string);
       if (!quiz) {
         return res.status(404).json({ error: "Quiz not found" });
       }
-      
+
       const updated = await storage.generateQuizPublicLink(
-        id, 
-        permission || "view", 
+        id as string,
+        permission || "view",
         requiredFields || ["name", "email"]
       );
-      
+
       if (updated) {
         const baseUrl = `${req.protocol}://${req.get('host')}`;
         const publicUrl = `${baseUrl}/public/quiz/${updated.publicAccessToken}`;
@@ -1535,9 +1553,9 @@ Return ONLY a JSON array of violations found (empty array if none):
   app.post("/api/quizzes/:id/disable-public-link", requireInstructor, async (req, res) => {
     try {
       const { id } = req.params;
-      const updated = await storage.updateQuiz(id, { 
+      const updated = await storage.updateQuiz(id as string, {
         publicLinkEnabled: false,
-        publicAccessToken: null 
+        publicAccessToken: null
       });
       res.json(updated);
     } catch (error) {
@@ -1550,25 +1568,25 @@ Return ONLY a JSON array of violations found (empty array if none):
     try {
       const { token } = req.params;
       const quiz = await storage.getQuizByPublicToken(token);
-      
+
       if (!quiz) {
         return res.status(404).json({ error: "Quiz not found or link expired" });
       }
-      
+
       const quizQuestions = await storage.getQuizQuestions(quiz.id);
-      
+
       // Don't include correct answers for attempt mode
-      const sanitizedQuestions = quiz.publicLinkPermission === "view" 
-        ? quizQuestions 
+      const sanitizedQuestions = quiz.publicLinkPermission === "view"
+        ? quizQuestions
         : quizQuestions.map(qq => ({
-            ...qq,
-            question: {
-              ...qq.question,
-              correctAnswer: undefined,
-              explanation: undefined,
-            }
-          }));
-      
+          ...qq,
+          question: {
+            ...qq.question,
+            correctAnswer: undefined,
+            explanation: undefined,
+          }
+        }));
+
       res.json({
         quiz: {
           ...quiz,
@@ -1589,17 +1607,17 @@ Return ONLY a JSON array of violations found (empty array if none):
     try {
       const { token } = req.params;
       const { identificationData, answers } = req.body;
-      
+
       const quiz = await storage.getQuizByPublicToken(token);
       if (!quiz || quiz.publicLinkPermission !== "attempt") {
         return res.status(403).json({ error: "Quiz submission not allowed" });
       }
-      
+
       // Calculate score
       const quizQuestions = await storage.getQuizQuestions(quiz.id);
       let score = 0;
       let totalPoints = 0;
-      
+
       const gradedAnswers = answers.map((ans: { questionId: string; answer: string }) => {
         const qq = quizQuestions.find(q => q.questionId === ans.questionId);
         if (qq) {
@@ -1610,9 +1628,9 @@ Return ONLY a JSON array of violations found (empty array if none):
         }
         return ans;
       });
-      
+
       const percentage = totalPoints > 0 ? Math.round((score / totalPoints) * 100) : 0;
-      
+
       const submission = await storage.createPublicQuizSubmission({
         quizId: quiz.id,
         identificationData,
@@ -1624,7 +1642,7 @@ Return ONLY a JSON array of violations found (empty array if none):
         submittedAt: new Date(),
         ipAddress: req.ip,
       });
-      
+
       res.json({
         submission,
         score,
@@ -1642,7 +1660,7 @@ Return ONLY a JSON array of violations found (empty array if none):
   app.get("/api/quizzes/:id/public-submissions", requireInstructor, async (req, res) => {
     try {
       const { id } = req.params;
-      const submissions = await storage.getPublicQuizSubmissions(id);
+      const submissions = await storage.getPublicQuizSubmissions(id as string);
       res.json(submissions);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch public submissions" });
@@ -1713,9 +1731,9 @@ Return ONLY a JSON array of violations found (empty array if none):
       const contextBlock = `
 === PLATFORM CONTEXT (live data) ===${conversationContext}
 Courses (${allCourses.length}): ${ctxCourses.map(c => `"${c.name}" [code:${c.code}, id:${c.id}]`).join(", ") || "none"}${moreNote(allCourses, 8)}
-Quizzes (${allQuizzes.length}): ${ctxQuizzes.map(q => `"${q.title}" [course:${allCourses.find(c=>c.id===q.courseId)?.name||"?"}, status:${q.status}, id:${q.id}]`).join(", ") || "none"}${moreNote(allQuizzes, 8)}
-Assignments (${allAssignments.length}): ${ctxAssignments.map(a => `"${a.title}" [course:${allCourses.find(c=>c.id===a.courseId)?.name||"?"}, status:${a.status}, id:${a.id}]`).join(", ") || "none"}${moreNote(allAssignments, 8)}
-Lectures (${allLectures.length}): ${ctxLectures.map(l => `"${l.title}" [course:${allCourses.find(c=>c.id===l.courseId)?.name||"?"}, id:${l.id}]`).join(", ") || "none"}${moreNote(allLectures, 8)}
+Quizzes (${allQuizzes.length}): ${ctxQuizzes.map(q => `"${q.title}" [course:${allCourses.find(c => c.id === q.courseId)?.name || "?"}, status:${q.status}, id:${q.id}]`).join(", ") || "none"}${moreNote(allQuizzes, 8)}
+Assignments (${allAssignments.length}): ${ctxAssignments.map(a => `"${a.title}" [course:${allCourses.find(c => c.id === a.courseId)?.name || "?"}, status:${a.status}, id:${a.id}]`).join(", ") || "none"}${moreNote(allAssignments, 8)}
+Lectures (${allLectures.length}): ${ctxLectures.map(l => `"${l.title}" [course:${allCourses.find(c => c.id === l.courseId)?.name || "?"}, id:${l.id}]`).join(", ") || "none"}${moreNote(allLectures, 8)}
 Students (${allStudents.length}): ${ctxStudents.map(s => `"${s.name}" [email:${s.email}, id:${s.id}]`).join(", ") || "none"}${moreNote(allStudents, 8)}
 Current user: ${user?.name} (${user?.role})
 === END CONTEXT ===
@@ -1856,7 +1874,7 @@ User command: "${command}"`;
       const aiUser = await getAiUser(userId);
 
       // Call the intent classifier; handle AI provider failures gracefully
-      let intentResult;
+      let intentResult: any;
       let providerError: string | null = null;
       try {
         intentResult = await generateWithProvider({
@@ -2080,12 +2098,12 @@ Return only valid JSON, no markdown.`;
             title: params.title || params.name || "New Lecture",
             description: params.description || "",
             unit: params.unit || "Unit 1",
-            videoUrl: params.videoUrl || null,
+            ...(params.videoUrl ? { videoUrl: params.videoUrl } : {}),
           });
           allLectures.push(lecture);
           return { success: true, message: `✅ Created lecture **"${lecture.title}"** in **${course.name}** (${lecture.unit})`, data: { lecture } };
 
-        // ── UPDATE ──────────────────────────────────────────────────────────────
+          // ── UPDATE ──────────────────────────────────────────────────────────────
         } else if (intent === "update_quiz") {
           const quiz = findMyQuiz(params.quizName || params.title || params.quizId);
           if (!quiz) return { success: false, message: "❌ Could not find that quiz." };
@@ -2134,7 +2152,7 @@ Return only valid JSON, no markdown.`;
           const updated = await storage.updateLecture(lecture.id, updateData);
           return { success: true, message: `✅ Updated lecture **"${lecture.title}"**`, data: { lecture: updated } };
 
-        // ── PUBLISH / STATUS ────────────────────────────────────────────────────
+          // ── PUBLISH / STATUS ────────────────────────────────────────────────────
         } else if (intent === "publish_quiz") {
           const nameOrAll = params.title || params.name || params.quizName || "";
           if (nameOrAll.toLowerCase() === "all") {
@@ -2156,7 +2174,7 @@ Return only valid JSON, no markdown.`;
         } else if (intent === "archive_quiz") {
           const quiz = findMyQuiz(params.title || params.name || params.quizName);
           if (!quiz) return { success: false, message: "❌ No quiz found." };
-          const updated = await storage.updateQuiz(quiz.id, { status: "archived" });
+          const updated = await storage.updateQuiz(quiz.id, { status: "closed" });
           return { success: true, message: `✅ Archived quiz **"${quiz.title}"**`, data: { quiz: updated } };
 
         } else if (intent === "publish_assignment") {
@@ -2165,7 +2183,7 @@ Return only valid JSON, no markdown.`;
           const updated = await storage.updateAssignment(assignment.id, { status: "published" });
           return { success: true, message: `✅ Published assignment **"${assignment.title}"**`, data: { assignment: updated } };
 
-        // ── DELETE ──────────────────────────────────────────────────────────────
+          // ── DELETE ──────────────────────────────────────────────────────────────
         } else if (intent === "delete_quiz") {
           const quiz = findMyQuiz(params.title || params.name || params.quizName);
           if (!quiz) return { success: false, message: "❌ No matching quiz found." };
@@ -2190,7 +2208,7 @@ Return only valid JSON, no markdown.`;
           await storage.deleteLecture(match.id);
           return { success: true, message: `🗑️ Deleted lecture **"${match.title}"**`, data: { deleted: true } };
 
-        // ── SHARING ─────────────────────────────────────────────────────────────
+          // ── SHARING ─────────────────────────────────────────────────────────────
         } else if (intent === "generate_public_link") {
           const quiz = findMyQuiz(params.quizName || params.title || params.name);
           if (!quiz) return { success: false, message: "❌ No quiz found to generate a link for." };
@@ -2200,7 +2218,7 @@ Return only valid JSON, no markdown.`;
           const publicUrl = `http://localhost:5000/public/quiz/${updated.publicAccessToken}`;
           return { success: true, message: `🔗 Generated **${permission}** public link for **"${quiz.title}"**\n\n\`${publicUrl}\`\n\nStudents can access without logging in.`, data: { quiz: updated, publicUrl } };
 
-        // ── LISTING ─────────────────────────────────────────────────────────────
+          // ── LISTING ─────────────────────────────────────────────────────────────
         } else if (intent === "list_quizzes") {
           const filtered = params.courseName
             ? allQuizzes.filter(q => { const c = allCourses.find(c2 => c2.id === q.courseId); return c?.name.toLowerCase().includes(params.courseName.toLowerCase()); })
@@ -2271,7 +2289,7 @@ Return only valid JSON, no markdown.`;
             data: { submissions: allSubs, navigateTo: resultUrl }
           };
 
-        // ── ANALYTICS ───────────────────────────────────────────────────────────
+          // ── ANALYTICS ───────────────────────────────────────────────────────────
         } else if (intent === "view_analytics") {
           const stats = await storage.getDashboardStats(userId);
           return { success: true, message: `📊 Platform stats: **${stats.totalCourses}** courses, **${stats.totalQuizzes}** quizzes, **${stats.totalStudents}** students, **${stats.recentSubmissions}** recent submissions, **${stats.pendingGrading}** pending grading`, data: { stats, navigateTo: "/analytics" } };
@@ -2281,7 +2299,7 @@ Return only valid JSON, no markdown.`;
           const navigateTo = course ? `/gradebook?courseId=${course.id}` : "/gradebook";
           return { success: true, message: course ? `📊 Opening gradebook for **"${course.name}"**` : "📊 Opening gradebook", data: { navigateTo } };
 
-        // ── STUDENT MANAGEMENT ───────────────────────────────────────────────────
+          // ── STUDENT MANAGEMENT ───────────────────────────────────────────────────
         } else if (intent === "enroll_student") {
           const course = findCourse(params.courseName);
           if (!course) return { success: false, message: `❌ Could not find course "${params.courseName}".` };
@@ -2305,7 +2323,7 @@ Return only valid JSON, no markdown.`;
           if (!student) return { success: false, message: `❌ Could not find student "${params.studentName || params.studentEmail}".` };
           return { success: true, message: `📈 Opening performance dashboard for **${student.name}**`, data: { navigateTo: `/students/${student.id}` } };
 
-        // ── GRADING ─────────────────────────────────────────────────────────────
+          // ── GRADING ─────────────────────────────────────────────────────────────
         } else if (intent === "grade_submission") {
           const assignment = findMyAssignment(params.assignmentName || params.assignment || params.title);
           if (!assignment) return { success: false, message: "❌ Could not find that assignment." };
@@ -2319,7 +2337,7 @@ Return only valid JSON, no markdown.`;
           // Trigger the bulk AI grading endpoint internally
           return { success: true, message: `🤖 Triggering AI grading for **"${assignment.title}"** — opening submissions page`, data: { navigateTo: `/assignments/${assignment.id}/submissions`, aiGradeAll: true, assignmentId: assignment.id } };
 
-        // ── AI FEATURES ──────────────────────────────────────────────────────────
+          // ── AI FEATURES ──────────────────────────────────────────────────────────
         } else if (intent === "generate_questions") {
           const course = findCourse(params.courseName);
           if (!course) return { success: false, message: "❌ Please specify a course." };
@@ -2348,7 +2366,7 @@ Return only valid JSON, no markdown.`;
           await storage.updateLecture(lecture.id, { summary: sumResult.text });
           return { success: true, message: `📖 **Summary for "${lecture.title}":**\n\n${sumResult.text}`, data: { lecture } };
 
-        // ── NAVIGATION ───────────────────────────────────────────────────────────
+          // ── NAVIGATION ───────────────────────────────────────────────────────────
         } else if (intent === "navigate") {
           const pageMap: Record<string, string> = {
             dashboard: "/dashboard", courses: "/courses", quizzes: "/quizzes",
@@ -2360,7 +2378,7 @@ Return only valid JSON, no markdown.`;
           const path = pageMap[page] || "/dashboard";
           return { success: true, message: `🧭 Navigating to **${page || "dashboard"}**`, data: { navigateTo: path } };
 
-        // ── CONVERSATIONAL QUESTION ──────────────────────────────────────────────
+          // ── CONVERSATIONAL QUESTION ──────────────────────────────────────────────
         } else if (intent === "question") {
           const q = params.question || command;
           const answerPrompt = `You are an expert assistant for EduAssess AI platform.
@@ -2374,7 +2392,7 @@ Question: "${q}"`;
           });
           return { success: true, message: ansResult.text };
 
-        // ── HELP ─────────────────────────────────────────────────────────────────
+          // ── HELP ─────────────────────────────────────────────────────────────────
         } else if (intent === "help") {
           return {
             success: true,
@@ -2408,7 +2426,7 @@ I couldn't determine a specific action. Answer their query or explain what you c
 
       const taskResults: Array<{ intent: string; result: { success: boolean; message: string; data?: any } }> = [];
       let lastCreatedCourseName: string | null = null;
-      
+
       for (const task of parsed.tasks) {
         const taskParams = { ...(task.parameters || {}) };
         if (lastCreatedCourseName && !taskParams.courseName && !taskParams.course) {
@@ -2453,7 +2471,7 @@ I couldn't determine a specific action. Answer their query or explain what you c
         data: Object.keys(combinedData).length > 0 ? combinedData : undefined,
         taskResults,
       };
-      
+
       await storage.updateChatCommand(chatCommand.id, {
         intent: parsed.tasks.map(t => t.intent).join("+"),
         parameters: parsed.tasks.map(t => t.parameters),
@@ -2461,7 +2479,7 @@ I couldn't determine a specific action. Answer their query or explain what you c
         result,
         completedAt: new Date(),
       });
-      
+
       res.json({ command: chatCommand, result, aiResponse: parsed.message });
     } catch (error: any) {
       console.error("Chat command error:", error);
@@ -2488,7 +2506,7 @@ I couldn't determine a specific action. Answer their query or explain what you c
   // Get a single quiz submission (student owns it or instructor)
   app.get("/api/quiz-submissions/:id", requireAuth, async (req, res) => {
     try {
-      const submission = await storage.getQuizSubmission(req.params.id);
+      const submission = await storage.getQuizSubmission(req.params.id as string);
       if (!submission) return res.status(404).json({ error: "Submission not found" });
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(401).json({ error: "Not found" });
@@ -2507,7 +2525,7 @@ I couldn't determine a specific action. Answer their query or explain what you c
   // All submissions for a quiz (instructor)
   app.get("/api/quiz/:id/submissions", requireInstructor, async (req, res) => {
     try {
-      const submissions = await storage.getQuizSubmissions(req.params.id);
+      const submissions = await storage.getQuizSubmissions(req.params.id as string);
       const enriched = await Promise.all(
         submissions.map(async (s) => {
           const student = await storage.getUser(s.studentId);
@@ -2524,14 +2542,14 @@ I couldn't determine a specific action. Answer their query or explain what you c
   // Proctoring violations for a submission
   app.get("/api/proctoring/violations/:submissionId", requireAuth, async (req, res) => {
     try {
-      const submission = await storage.getQuizSubmission(req.params.submissionId);
+      const submission = await storage.getQuizSubmission(req.params.submissionId as string);
       if (!submission) return res.status(404).json({ error: "Submission not found" });
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(401).json({ error: "Not found" });
       if (user.role === "student" && submission.studentId !== req.session.userId) {
         return res.status(403).json({ error: "Access denied" });
       }
-      const violations = await storage.getProctoringViolations(req.params.submissionId);
+      const violations = await storage.getProctoringViolations(req.params.submissionId as string);
       res.json(violations);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch violations" });
@@ -2542,7 +2560,7 @@ I couldn't determine a specific action. Answer their query or explain what you c
   app.patch("/api/proctoring/violations/:id/review", requireInstructor, async (req, res) => {
     try {
       const { reviewed, reviewNote } = req.body;
-      const updated = await storage.updateProctoringViolation(req.params.id, {
+      const updated = await storage.updateProctoringViolation(req.params.id as string, {
         reviewed: !!reviewed,
         reviewNote: reviewNote ?? null,
       });
@@ -2558,7 +2576,7 @@ I couldn't determine a specific action. Answer their query or explain what you c
   // Get a single assignment
   app.get("/api/assignments/:id", requireAuth, async (req, res) => {
     try {
-      const assignment = await storage.getAssignment(req.params.id);
+      const assignment = await storage.getAssignment(req.params.id as string);
       if (!assignment) return res.status(404).json({ error: "Assignment not found" });
       res.json(assignment);
     } catch (error) {
@@ -2569,7 +2587,7 @@ I couldn't determine a specific action. Answer their query or explain what you c
   // Student submits an assignment
   app.post("/api/assignment/:id/submit", requireAuth, async (req, res) => {
     try {
-      const assignment = await storage.getAssignment(req.params.id);
+      const assignment = await storage.getAssignment(req.params.id as string);
       if (!assignment) return res.status(404).json({ error: "Assignment not found" });
       const studentId = req.session.userId!;
 
@@ -2618,7 +2636,8 @@ I couldn't determine a specific action. Answer their query or explain what you c
   // All submissions for an assignment (instructor)
   app.get("/api/assignments/:id/submissions", requireInstructor, async (req, res) => {
     try {
-      const submissions = await storage.getAssignmentSubmissions(req.params.id);
+      const assignmentId = req.params.id as string;
+      const submissions = await storage.getAssignmentSubmissions(assignmentId);
       const enriched = await Promise.all(
         submissions.map(async (s) => {
           const student = await storage.getUser(s.studentId);
@@ -2634,7 +2653,8 @@ I couldn't determine a specific action. Answer their query or explain what you c
   // Get a single assignment submission
   app.get("/api/assignment-submissions/:id", requireAuth, async (req, res) => {
     try {
-      const submission = await storage.getAssignmentSubmission(req.params.id);
+      const submissionId = req.params.id as string;
+      const submission = await storage.getAssignmentSubmission(submissionId);
       if (!submission) return res.status(404).json({ error: "Submission not found" });
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(401).json({ error: "Not found" });
@@ -2653,7 +2673,7 @@ I couldn't determine a specific action. Answer their query or explain what you c
   app.patch("/api/assignment-submissions/:id/grade", requireInstructor, async (req, res) => {
     try {
       const { score, instructorFeedback, rubricScores } = req.body;
-      const updated = await storage.updateAssignmentSubmission(req.params.id, {
+      const updated = await storage.updateAssignmentSubmission(req.params.id as string, {
         score: score ?? null,
         instructorFeedback: instructorFeedback ?? null,
         rubricScores: rubricScores ?? null,
@@ -2670,7 +2690,8 @@ I couldn't determine a specific action. Answer their query or explain what you c
   // AI grade a single assignment submission
   app.post("/api/assignment-submissions/:id/ai-grade", requireInstructor, async (req, res) => {
     try {
-      const submission = await storage.getAssignmentSubmission(req.params.id);
+      const submissionId = req.params.id as string;
+      const submission = await storage.getAssignmentSubmission(submissionId);
       if (!submission) return res.status(404).json({ error: "Submission not found" });
       const assignment = await storage.getAssignment(submission.assignmentId);
       if (!assignment) return res.status(404).json({ error: "Assignment not found" });
@@ -2717,7 +2738,7 @@ Respond in JSON format ONLY:
       if (!jsonMatch) return res.status(500).json({ error: "AI failed to produce a grade" });
       const graded = JSON.parse(jsonMatch[0]);
       const aiFeedback = `${graded.overallFeedback}\n\nStrengths: ${graded.strengths}\n\nAreas for Improvement: ${graded.improvements}`;
-      const updated = await storage.updateAssignmentSubmission(req.params.id, {
+      const updated = await storage.updateAssignmentSubmission(submissionId, {
         score: Math.min(graded.totalScore, assignment.maxScore),
         rubricScores: graded.rubricScores,
         aiFeedback,
@@ -2734,7 +2755,8 @@ Respond in JSON format ONLY:
   // AI detect content (is it AI-written?)
   app.post("/api/assignment-submissions/:id/detect-ai", requireInstructor, async (req, res) => {
     try {
-      const submission = await storage.getAssignmentSubmission(req.params.id);
+      const submissionId = req.params.id as string;
+      const submission = await storage.getAssignmentSubmission(submissionId);
       if (!submission) return res.status(404).json({ error: "Submission not found" });
       if (!submission.content) return res.status(400).json({ error: "No text content to analyze" });
 
@@ -2769,7 +2791,7 @@ Respond in JSON format ONLY:
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return res.status(500).json({ error: "AI analysis failed" });
       const result = JSON.parse(jsonMatch[0]);
-      await storage.updateAssignmentSubmission(req.params.id, {
+      await storage.updateAssignmentSubmission(req.params.id as string, {
         aiContentScore: result.aiProbability,
       });
       res.json(result);
@@ -2782,9 +2804,10 @@ Respond in JSON format ONLY:
   // Bulk AI grade all ungraded submissions for an assignment
   app.post("/api/assignments/:id/ai-grade-all", requireInstructor, async (req, res) => {
     try {
-      const assignment = await storage.getAssignment(req.params.id);
+      const assignmentId = req.params.id as string;
+      const assignment = await storage.getAssignment(assignmentId);
       if (!assignment) return res.status(404).json({ error: "Assignment not found" });
-      const submissions = await storage.getAssignmentSubmissions(req.params.id);
+      const submissions = await storage.getAssignmentSubmissions(assignmentId);
       const ungraded = submissions.filter(s => s.status === "submitted" && (s.content || s.fileUrl));
 
       const aiUser = await getAiUser(req.session.userId);
@@ -2836,7 +2859,7 @@ Respond in JSON ONLY: { "rubricScores": [{"criterion": "...", "score": <n>, "fee
 
   app.get("/api/courses/:id/gradebook", requireInstructor, async (req, res) => {
     try {
-      const gradebook = await storage.getGradebook(req.params.id);
+      const gradebook = await storage.getGradebook(req.params.id as string);
       res.json(gradebook);
     } catch (error) {
       console.error("Gradebook error:", error);
@@ -2857,7 +2880,7 @@ Respond in JSON ONLY: { "rubricScores": [{"criterion": "...", "score": <n>, "fee
 
   app.get("/api/students/:id/performance", requireInstructor, async (req, res) => {
     try {
-      const performance = await storage.getStudentPerformance(req.params.id);
+      const performance = await storage.getStudentPerformance(req.params.id as string);
       res.json(performance);
     } catch (error) {
       console.error("Student performance error:", error);
