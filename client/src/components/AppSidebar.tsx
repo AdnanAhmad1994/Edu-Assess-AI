@@ -58,7 +58,6 @@ const adminMenuItems = [
   { title: "Courses", url: "/courses", icon: BookOpen },
   { title: "Gradebook", url: "/gradebook", icon: BookMarked },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
-  { title: "Proctoring Logs", url: "/proctoring", icon: Shield },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
