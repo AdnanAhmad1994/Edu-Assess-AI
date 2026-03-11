@@ -20,8 +20,27 @@ export async function createApp() {
 
   const app = express();
 
-  // Trust Vercel / reverse-proxy so that secure cookies work correctly over HTTPS
+  // Trust Vercel / Netlify / reverse-proxy so that secure cookies work correctly over HTTPS
   app.set("trust proxy", 1);
+
+  // Enable CORS for cross-origin frontend-backend deployments (e.g., Netlify backend + Vercel frontend)
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+    } else {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+    }
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+
+    // Handle preflight requests
+    if (req.method === "OPTIONS") {
+      return res.status(200).end();
+    }
+    next();
+  });
 
   app.use(
     express.json({

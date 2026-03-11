@@ -139,6 +139,8 @@ export async function registerRoutes(
       cookie: {
         secure: process.env.NODE_ENV === "production",
         httpOnly: true,
+        // Netlify deployments often require SameSite=none because the API and frontend
+        // may technically be treated as different cross-site requests by the browser
         sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         maxAge: 24 * 60 * 60 * 1000,
       },
