@@ -392,25 +392,78 @@ export async function registerRoutes(
     }
   });
 
-  // Admin - User Management
-  app.get("/api/users", requireAdmin, async (req, res) => {
+  // User Management
+  app.get("/api/users", requireAuth, async (req, res) => {
     try {
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser || currentUser.role === "student") {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
       const role = req.query.role as string | undefined;
-      const users = await storage.getUsers(role);
-      res.json(users.map(sanitizeUser));
+
+      if (currentUser.role === "admin") {
+        const users = await storage.getUsers(role);
+        return res.json(users.map(sanitizeUser));
+      }
+
+      // Instructor logic: Only show students enrolled in their courses
+      if (currentUser.role === "instructor") {
+        // If the instructor is asking for admins or other instructors, deny or return empty
+        if (role === "admin" || role === "instructor") {
+          return res.json([]);
+        }
+
+        const instructorCourses = await storage.getCourses(currentUser.id);
+        const courseIds = instructorCourses.map(c => c.id);
+        
+        let allEnrolledStudentIds = new Set<string>();
+        for (const courseId of courseIds) {
+          const enrollments = await storage.getEnrollments(courseId);
+          for (const e of enrollments) {
+            allEnrolledStudentIds.add(e.studentId);
+          }
+        }
+
+        const allStudents = await storage.getUsers("student");
+        const filteredStudents = allStudents.filter(s => allEnrolledStudentIds.has(s.id));
+        
+        return res.json(filteredStudents.map(sanitizeUser));
+      }
+
     } catch (error) {
       console.error("Get users error:", error);
       res.status(500).json({ error: "Failed to fetch users" });
     }
   });
 
-  app.post("/api/users", requireAdmin, async (req, res) => {
+  app.post("/api/users", requireAuth, async (req, res) => {
     try {
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser || currentUser.role === "student") {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
       // Extend the schema to temporarily allow courseId from the frontend
       const extendedSchema = insertUserSchema.extend({
         courseId: z.string().optional(),
       });
       const data = extendedSchema.parse(req.body);
+
+      // Instructor security checks
+      if (currentUser.role === "instructor") {
+        if (data.role !== "student") {
+          return res.status(403).json({ error: "Instructors can only create students." });
+        }
+        if (!data.courseId || data.courseId === "none") {
+          return res.status(400).json({ error: "A student must be assigned to a course." });
+        }
+        // Verify the instructor owns the selected course
+        const course = await storage.getCourse(data.courseId);
+        if (!course || course.instructorId !== currentUser.id) {
+          return res.status(403).json({ error: "You can only assign students to your own courses." });
+        }
+      }
 
       const existingUsername = await storage.getUserByUsername(data.username);
       if (existingUsername) {
@@ -447,18 +500,50 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/users/:id", requireAdmin, async (req, res) => {
+  app.patch("/api/users/:id", requireAuth, async (req, res) => {
     try {
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser || currentUser.role === "student") {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
       const { id } = req.params;
       const existing = await storage.getUser(id as string);
       if (!existing) {
         return res.status(404).json({ error: "User not found" });
       }
 
+      // Instructor security checks for editing
+      if (currentUser.role === "instructor") {
+        if (existing.role !== "student") {
+          return res.status(403).json({ error: "Instructors can only edit students." });
+        }
+        
+        // Verify this student is enrolled in one of the instructor's courses
+        const instructorCourses = await storage.getCourses(currentUser.id);
+        const courseIds = instructorCourses.map(c => c.id);
+        let isEnrolled = false;
+        for (const courseId of courseIds) {
+          const enrollments = await storage.getEnrollments(courseId, existing.id);
+          if (enrollments.length > 0) {
+            isEnrolled = true;
+            break;
+          }
+        }
+        if (!isEnrolled) {
+          return res.status(403).json({ error: "You can only edit students enrolled in your courses." });
+        }
+      }
+
       const updates: Partial<User> = {};
+      
+      // Instructors cannot change roles
+      if (req.body.role && currentUser.role === "admin") {
+        updates.role = req.body.role;
+      }
+      
       if (req.body.name) updates.name = req.body.name;
       if (req.body.email) updates.email = req.body.email;
-      if (req.body.role) updates.role = req.body.role;
       if (req.body.password) {
         updates.password = await bcrypt.hash(req.body.password, 10);
       }
@@ -474,8 +559,13 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/users/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/users/:id", requireAuth, async (req, res) => {
     try {
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser || currentUser.role !== "admin") {
+        return res.status(403).json({ error: "Only administrators can delete users." });
+      }
+
       const { id } = req.params;
       if (id === req.session.userId) {
         return res.status(400).json({ error: "Cannot delete your own account" });

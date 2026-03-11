@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth-context";
 import {
   Plus,
   Users,
@@ -84,6 +85,7 @@ function getRoleIcon(role: string) {
 
 export default function UsersPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editUser, setEditUser] = useState<SafeUser | null>(null);
   const [deleteUser, setDeleteUser] = useState<SafeUser | null>(null);
@@ -105,7 +107,7 @@ export default function UsersPage() {
       name: "",
       email: "",
       password: "",
-      role: "instructor",
+      role: user?.role === "instructor" ? "student" : "instructor",
       courseId: "none",
     },
   });
@@ -224,6 +226,7 @@ export default function UsersPage() {
                           }
                         }} 
                         defaultValue={field.value}
+                        disabled={user?.role === "instructor"}
                       >
                         <FormControl>
                           <SelectTrigger data-testid="select-role">
@@ -231,9 +234,9 @@ export default function UsersPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="instructor">Instructor</SelectItem>
+                          {user?.role !== "instructor" && <SelectItem value="instructor">Instructor</SelectItem>}
                           <SelectItem value="student">Student</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
+                          {user?.role !== "instructor" && <SelectItem value="admin">Admin</SelectItem>}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -339,50 +342,54 @@ export default function UsersPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold" data-testid="text-total-users">{counts.total}</p>
-                <p className="text-xs text-muted-foreground">Total Users</p>
+                <p className="text-xs text-muted-foreground">{user?.role === "instructor" ? "My Students" : "Total Users"}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-muted">
-                <Shield className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold" data-testid="text-admin-count">{counts.admins}</p>
-                <p className="text-xs text-muted-foreground">Admins</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-muted">
-                <BookOpen className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold" data-testid="text-instructor-count">{counts.instructors}</p>
-                <p className="text-xs text-muted-foreground">Instructors</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-muted">
-                <GraduationCap className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold" data-testid="text-student-count">{counts.students}</p>
-                <p className="text-xs text-muted-foreground">Students</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {user?.role === "admin" && (
+          <>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-md bg-muted">
+                    <Shield className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold" data-testid="text-admin-count">{counts.admins}</p>
+                    <p className="text-xs text-muted-foreground">Admins</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-md bg-muted">
+                    <BookOpen className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold" data-testid="text-instructor-count">{counts.instructors}</p>
+                    <p className="text-xs text-muted-foreground">Instructors</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-md bg-muted">
+                    <GraduationCap className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold" data-testid="text-student-count">{counts.students}</p>
+                    <p className="text-xs text-muted-foreground">Students</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
@@ -396,14 +403,14 @@ export default function UsersPage() {
             data-testid="input-search-users"
           />
         </div>
-        <Select value={roleFilter} onValueChange={setRoleFilter}>
+        <Select value={roleFilter} onValueChange={setRoleFilter} disabled={user?.role === "instructor"}>
           <SelectTrigger className="w-[160px]" data-testid="select-filter-role">
             <SelectValue placeholder="Filter by role" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Roles</SelectItem>
-            <SelectItem value="admin">Admins</SelectItem>
-            <SelectItem value="instructor">Instructors</SelectItem>
+            {user?.role !== "instructor" && <SelectItem value="admin">Admins</SelectItem>}
+            {user?.role !== "instructor" && <SelectItem value="instructor">Instructors</SelectItem>}
             <SelectItem value="student">Students</SelectItem>
           </SelectContent>
         </Select>
@@ -467,14 +474,16 @@ export default function UsersPage() {
                       >
                         <Pencil className="w-4 h-4" />
                       </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setDeleteUser(u)}
-                        data-testid={`button-delete-user-${u.id}`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {user?.role === "admin" && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setDeleteUser(u)}
+                          data-testid={`button-delete-user-${u.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -524,16 +533,16 @@ export default function UsersPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Role</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={user?.role === "instructor"}>
                       <FormControl>
                         <SelectTrigger data-testid="select-edit-role">
                           <SelectValue />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="instructor">Instructor</SelectItem>
+                        {user?.role !== "instructor" && <SelectItem value="instructor">Instructor</SelectItem>}
                         <SelectItem value="student">Student</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        {user?.role !== "instructor" && <SelectItem value="admin">Admin</SelectItem>}
                       </SelectContent>
                     </Select>
                     <FormMessage />
