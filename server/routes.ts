@@ -1295,6 +1295,15 @@ Respond in JSON format:
         return res.status(404).json({ error: "Quiz not found" });
       }
 
+      // Enrollment check for students
+      const user = await storage.getUser(req.session.userId!);
+      if (user?.role === "student") {
+        const enrollments = await storage.getEnrollments(quiz.courseId, user.id);
+        if (enrollments.length === 0) {
+          return res.status(403).json({ error: "You are not enrolled in the course for this quiz." });
+        }
+      }
+
       const submission = await storage.createQuizSubmission({
         quizId: quiz.id,
         studentId: req.session.userId!,
