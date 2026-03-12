@@ -39,12 +39,15 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
-    const success = await login(data.username, data.password);
+    const result = await login(data.username, data.password);
     setIsLoading(false);
 
-    if (success) {
+    if (result === true) {
       toast({ title: "Welcome back!", description: "You have successfully logged in." });
       setLocation("/dashboard");
+    } else if (result && typeof result === "object" && result.requiresVerification) {
+      toast({ title: "Verification required", description: "Please verify your email." });
+      setLocation(`/verify-email?email=${encodeURIComponent(result.email)}`);
     } else {
       toast({ title: "Login failed", description: "Invalid username or password.", variant: "destructive" });
     }

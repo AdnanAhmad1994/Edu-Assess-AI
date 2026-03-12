@@ -46,7 +46,7 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
-    const success = await register({
+    const result = await register({
       name: data.name,
       email: data.email,
       username: data.username,
@@ -55,9 +55,12 @@ export default function RegisterPage() {
     });
     setIsLoading(false);
 
-    if (success) {
+    if (result === true) {
       toast({ title: "Account created!", description: "Welcome to EduAssess AI." });
       setLocation("/dashboard");
+    } else if (result && typeof result === "object" && result.requiresVerification) {
+      toast({ title: "Account created!", description: "Please check your email for the verification code." });
+      setLocation(`/verify-email?email=${encodeURIComponent(result.email)}`);
     } else {
       toast({ title: "Registration failed", description: "This username or email may already be in use.", variant: "destructive" });
     }

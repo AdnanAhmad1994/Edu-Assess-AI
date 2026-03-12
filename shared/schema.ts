@@ -32,6 +32,7 @@ export const users = pgTable("users", {
   // Which provider is currently active
   activeAiProvider: text("active_ai_provider").default("groq"),
   patternHash: text("pattern_hash"),
+  isVerified: boolean("is_verified").default(true),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -200,6 +201,16 @@ export const publicQuizSubmissions = pgTable("public_quiz_submissions", {
   ipAddress: text("ip_address"),
 });
 
+// OTP Verifications
+export const otpVerifications = pgTable("otp_verifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  otp: varchar("otp").notNull(),
+  purpose: varchar("purpose").notNull().default("registration"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // Password Reset Tokens
 export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -305,6 +316,7 @@ export const insertQuizSubmissionSchema = createInsertSchema(quizSubmissions).om
 export const insertAssignmentSubmissionSchema = createInsertSchema(assignmentSubmissions).omit({ id: true });
 export const insertProctoringViolationSchema = createInsertSchema(proctoringViolations).omit({ id: true, timestamp: true });
 export const insertPublicQuizSubmissionSchema = createInsertSchema(publicQuizSubmissions).omit({ id: true, startedAt: true });
+export const insertOtpVerificationSchema = createInsertSchema(otpVerifications).omit({ id: true, createdAt: true });
 export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({ id: true, createdAt: true });
 export const insertChatCommandSchema = createInsertSchema(chatCommands).omit({ id: true, createdAt: true });
 
@@ -333,6 +345,8 @@ export type ProctoringViolation = typeof proctoringViolations.$inferSelect;
 export type InsertProctoringViolation = z.infer<typeof insertProctoringViolationSchema>;
 export type PublicQuizSubmission = typeof publicQuizSubmissions.$inferSelect;
 export type InsertPublicQuizSubmission = z.infer<typeof insertPublicQuizSubmissionSchema>;
+export type OtpVerification = typeof otpVerifications.$inferSelect;
+export type InsertOtpVerification = z.infer<typeof insertOtpVerificationSchema>;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
 export type ChatCommand = typeof chatCommands.$inferSelect;

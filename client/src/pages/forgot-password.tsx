@@ -66,17 +66,15 @@ export default function ForgotPasswordPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground" data-testid="text-reset-sent">
-                If an account with that email exists, a password reset link has been sent. 
+                If an account with that email exists, a password reset OTP has been sent. 
                 Please check your inbox and spam folder.
               </p>
               <Button
-                variant="outline"
                 className="w-full"
-                onClick={() => setLocation("/login")}
-                data-testid="button-back-to-login"
+                onClick={() => setLocation(`/reset-password?email=${encodeURIComponent(form.getValues().email)}`)}
+                data-testid="button-go-to-reset"
               >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Login
+                Enter OTP
               </Button>
             </div>
           ) : (

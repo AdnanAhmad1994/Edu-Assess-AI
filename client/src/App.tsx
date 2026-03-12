@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
+import VerifyEmailPage from "@/pages/verify-email";
 import DashboardPage from "@/pages/dashboard";
 import CoursesPage from "@/pages/courses";
 import QuizzesPage from "@/pages/quizzes";
@@ -116,13 +117,16 @@ function Router() {
       <Route path="/register">
         <PublicOnlyRoute component={RegisterPage} />
       </Route>
+      <Route path="/verify-email">
+        <PublicOnlyRoute component={VerifyEmailPage} />
+      </Route>
       <Route path="/forgot-password">
         <PublicOnlyRoute component={ForgotPasswordPage} />
       </Route>
       <Route path="/forgot-username">
         <PublicOnlyRoute component={ForgotUsernamePage} />
       </Route>
-      <Route path="/reset-password/:token">
+      <Route path="/reset-password">
         <ResetPasswordPage />
       </Route>
 

@@ -12,10 +12,11 @@ import {
   type ProctoringViolation, type InsertProctoringViolation,
   type PublicQuizSubmission, type InsertPublicQuizSubmission,
   type PasswordResetToken, type InsertPasswordResetToken,
+  type OtpVerification, type InsertOtpVerification,
   type ChatCommand, type InsertChatCommand,
   users, courses, lectures, questions, quizzes, quizQuestions,
   assignments, enrollments, quizSubmissions, assignmentSubmissions,
-  proctoringViolations, publicQuizSubmissions, passwordResetTokens, chatCommands,
+  proctoringViolations, publicQuizSubmissions, otpVerifications, passwordResetTokens, chatCommands,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { eq, and, desc } from "drizzle-orm";
@@ -111,6 +112,12 @@ export interface IStorage {
   createChatCommand(command: InsertChatCommand): Promise<ChatCommand>;
   updateChatCommand(id: string, command: Partial<ChatCommand>): Promise<ChatCommand | undefined>;
 
+  // OTP Verifications
+  createOtpVerification(userId: string, otp: string, purpose: string, expiresAt: Date): Promise<OtpVerification>;
+  getOtpVerification(userId: string, otp: string, purpose: string): Promise<OtpVerification | undefined>;
+  deleteOtpVerification(id: string): Promise<void>;
+  deleteOtpVerificationsForUser(userId: string, purpose: string): Promise<void>;
+
   // Password Reset Tokens
   createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<PasswordResetToken>;
   getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined>;
@@ -195,6 +202,7 @@ export class MemStorage implements IStorage {
   private assignmentSubmissions: Map<string, AssignmentSubmission> = new Map();
   private proctoringViolations: Map<string, ProctoringViolation> = new Map();
   private publicQuizSubmissions: Map<string, PublicQuizSubmission> = new Map();
+  private otpVerifications: Map<string, OtpVerification> = new Map();
   private chatCommands: Map<string, ChatCommand> = new Map();
   private passwordResetTokens: Map<string, PasswordResetToken> = new Map();
 
@@ -995,6 +1003,38 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
+  async createOtpVerification(userId: string, otp: string, purpose: string, expiresAt: Date): Promise<OtpVerification> {
+    const id = randomUUID();
+    const verification: OtpVerification = {
+      id,
+      userId,
+      otp,
+      purpose,
+      expiresAt,
+      createdAt: new Date(),
+    };
+    this.otpVerifications.set(id, verification);
+    return verification;
+  }
+
+  async getOtpVerification(userId: string, otp: string, purpose: string): Promise<OtpVerification | undefined> {
+    return Array.from(this.otpVerifications.values()).find(
+      v => v.userId === userId && v.otp === otp && v.purpose === purpose
+    );
+  }
+
+  async deleteOtpVerification(id: string): Promise<void> {
+    this.otpVerifications.delete(id);
+  }
+
+  async deleteOtpVerificationsForUser(userId: string, purpose: string): Promise<void> {
+    for (const [id, v] of Array.from(this.otpVerifications.entries())) {
+      if (v.userId === userId && v.purpose === purpose) {
+        this.otpVerifications.delete(id);
+      }
+    }
+  }
+
   async createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<PasswordResetToken> {
     const id = randomUUID();
     const resetToken: PasswordResetToken = {
@@ -1523,6 +1563,18 @@ export class DatabaseStorage implements IStorage {
   async getPublicQuizSubmission(id: string) { return (await db!.select().from(publicQuizSubmissions).where(eq(publicQuizSubmissions.id, id)))[0]; }
   async createPublicQuizSubmission(data: InsertPublicQuizSubmission) { return (await db!.insert(publicQuizSubmissions).values({ ...data, id: randomUUID() }).returning())[0]; }
   async updatePublicQuizSubmission(id: string, data: Partial<PublicQuizSubmission>) { return (await db!.update(publicQuizSubmissions).set(data).where(eq(publicQuizSubmissions.id, id)).returning())[0]; }
+
+  // OTP Verifications
+  async createOtpVerification(userId: string, otp: string, purpose: string, expiresAt: Date): Promise<OtpVerification> {
+    return (await db!.insert(otpVerifications).values({ id: randomUUID(), userId, otp, purpose, expiresAt }).returning())[0];
+  }
+  async getOtpVerification(userId: string, otp: string, purpose: string) {
+    return (await db!.select().from(otpVerifications).where(and(eq(otpVerifications.userId, userId), eq(otpVerifications.otp, otp), eq(otpVerifications.purpose, purpose))))[0];
+  }
+  async deleteOtpVerification(id: string) { await db!.delete(otpVerifications).where(eq(otpVerifications.id, id)); }
+  async deleteOtpVerificationsForUser(userId: string, purpose: string) {
+    await db!.delete(otpVerifications).where(and(eq(otpVerifications.userId, userId), eq(otpVerifications.purpose, purpose)));
+  }
 
   // Password Reset Tokens
   async createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<PasswordResetToken> {

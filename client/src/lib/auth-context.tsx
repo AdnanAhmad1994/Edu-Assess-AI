@@ -4,10 +4,11 @@ import type { User } from "@shared/schema";
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<boolean>;
-  register: (data: { username: string; password: string; email: string; name: string; role: string }) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<boolean | { requiresVerification: boolean, email: string }>;
+  register: (data: { username: string; password: string; email: string; name: string; role: string }) => Promise<boolean | { requiresVerification: boolean, email: string }>;
   logout: () => Promise<void>;
   refetchUser: () => Promise<void>;
+  setAuthData: (user: User | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,15 +35,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (username: string, password: string): Promise<boolean | { requiresVerification: boolean, email: string }> => {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
+      
+      const data = await res.json();
+      
+      if (res.status === 403 && data.requiresVerification) {
+         return { requiresVerification: true, email: data.email };
+      }
+      
       if (res.ok) {
-        const data = await res.json();
         setUser(data);
         return true;
       }
@@ -53,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (data: { username: string; password: string; email: string; name: string; role: string }): Promise<boolean> => {
+  const register = async (data: { username: string; password: string; email: string; name: string; role: string }): Promise<boolean | { requiresVerification: boolean, email: string }> => {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -62,6 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (res.ok) {
         const userData = await res.json();
+        if (userData.requiresVerification) {
+          return { requiresVerification: true, email: data.email };
+        }
         setUser(userData);
         return true;
       }
@@ -82,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout, refetchUser: checkAuth }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout, refetchUser: checkAuth, setAuthData: setUser }}>
       {children}
     </AuthContext.Provider>
   );

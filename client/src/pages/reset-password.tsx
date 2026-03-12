@@ -10,8 +10,10 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { GraduationCap, CheckCircle, XCircle, Lock } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const resetPasswordSchema = z.object({
+  otp: z.string().length(6, "OTP must be exactly 6 digits"),
   newPassword: z.string().min(6, "Password must be at least 6 characters"),
   confirmPassword: z.string().min(6, "Please confirm your password"),
 }).refine((data) => data.newPassword === data.confirmPassword, {
@@ -22,8 +24,9 @@ const resetPasswordSchema = z.object({
 type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
 
 export default function ResetPasswordPage() {
-  const [, setLocation] = useLocation();
-  const params = useParams<{ token: string }>();
+  const [location, setLocation] = useLocation();
+  const searchParams = new URLSearchParams(window.location.search);
+  const email = searchParams.get("email");
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<"form" | "success" | "error">("form");
@@ -31,14 +34,20 @@ export default function ResetPasswordPage() {
 
   const form = useForm<ResetPasswordFormData>({
     resolver: zodResolver(resetPasswordSchema),
-    defaultValues: { newPassword: "", confirmPassword: "" },
+    defaultValues: { otp: "", newPassword: "", confirmPassword: "" },
   });
+
+  if (!email) {
+    setLocation("/forgot-password");
+    return null;
+  }
 
   const onSubmit = async (data: ResetPasswordFormData) => {
     setIsLoading(true);
     try {
       await apiRequest("POST", "/api/auth/reset-password", {
-        token: params.token,
+        email,
+        otp: data.otp,
         newPassword: data.newPassword,
       });
       setStatus("success");
@@ -131,6 +140,33 @@ export default function ResetPasswordPage() {
           ) : (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="otp"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col items-center mb-4">
+                      <FormLabel>6-Digit Code</FormLabel>
+                      <FormControl>
+                        <InputOTP 
+                          maxLength={6} 
+                          value={field.value} 
+                          onChange={field.onChange}
+                          disabled={isLoading}
+                        >
+                          <InputOTPGroup>
+                            <InputOTPSlot index={0} />
+                            <InputOTPSlot index={1} />
+                            <InputOTPSlot index={2} />
+                            <InputOTPSlot index={3} />
+                            <InputOTPSlot index={4} />
+                            <InputOTPSlot index={5} />
+                          </InputOTPGroup>
+                        </InputOTP>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={form.control}
                   name="newPassword"

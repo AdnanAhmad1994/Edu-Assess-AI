@@ -22,7 +22,7 @@ import {
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { sendPasswordResetEmail, sendUsernameReminderEmail } from "./email";
+import { sendPasswordResetOTPEmail, sendUsernameReminderEmail, sendOTPVerificationEmail } from "./email";
 import { registerObjectStorageRoutes, ObjectStorageService } from "./replit_integrations/object_storage";
 import { generateWithProvider, testProviderKey, PROVIDER_CONFIGS } from "./aiProvider";
 
@@ -169,10 +169,30 @@ export async function registerRoutes(
       }
 
       const hashedPassword = await bcrypt.hash(data.password, 10);
-      const user = await storage.createUser({ ...data, password: hashedPassword });
+      
+      const user = await storage.createUser({ 
+        ...data, 
+        password: hashedPassword,
+        isVerified: false 
+      });
 
-      req.session.userId = user.id;
-      res.status(201).json(sanitizeUser(user));
+      // Generate 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      await storage.createOtpVerification(user.id, otp, "registration", expiresAt);
+
+      // Send Email
+      const emailSent = await sendOTPVerificationEmail(user.email, otp, user.name);
+      
+      if (!emailSent) {
+        return res.status(201).json({ 
+          ...sanitizeUser(user), 
+          requiresVerification: true,
+          warning: "User created, but failed to send verification email. Please try resending the code from the verification page."
+        });
+      }
+
+      res.status(201).json({ ...sanitizeUser(user), requiresVerification: true });
     } catch (error) {
       console.error("Registration error:", error);
       res.status(400).json({ error: "Invalid registration data" });
@@ -193,11 +213,80 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
+      if (user.isVerified === false) {
+        return res.status(403).json({ error: "User not verified", requiresVerification: true, email: user.email });
+      }
+
       req.session.userId = user.id;
       res.json(sanitizeUser(user));
     } catch (error) {
       console.error("Login error:", error);
       res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  app.post("/api/auth/verify-otp", async (req, res) => {
+    try {
+      const { email, otp } = req.body;
+      if (!email || !otp) {
+        return res.status(400).json({ error: "Email and OTP are required" });
+      }
+
+      const user = await storage.getUserByEmail(email.toLowerCase());
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const verification = await storage.getOtpVerification(user.id, otp, "registration");
+      if (!verification) {
+        return res.status(400).json({ error: "Invalid or expired OTP" });
+      }
+
+      if (new Date() > verification.expiresAt) {
+        return res.status(400).json({ error: "OTP has expired. Please request a new one." });
+      }
+
+      await storage.updateUser(user.id, { isVerified: true });
+      await storage.deleteOtpVerificationsForUser(user.id, "registration"); // Clean up
+
+      req.session.userId = user.id;
+      res.json(sanitizeUser({ ...user, isVerified: true }));
+    } catch (error) {
+      console.error("Verify OTP error:", error);
+      res.status(500).json({ error: "Failed to verify OTP" });
+    }
+  });
+
+  app.post("/api/auth/resend-otp", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(email.toLowerCase());
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (user.isVerified) {
+        return res.status(400).json({ error: "User is already verified" });
+      }
+
+      // Generate new OTP
+      await storage.deleteOtpVerificationsForUser(user.id, "registration"); // Remove old unexpired ones
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      await storage.createOtpVerification(user.id, otp, "registration", expiresAt);
+
+      const emailSent = await sendOTPVerificationEmail(user.email, otp, user.name);
+      if (!emailSent) {
+        return res.status(500).json({ error: "Failed to send OTP email. Please check your email configuration." });
+      }
+      res.json({ message: "A new OTP has been sent" });
+    } catch (error) {
+      console.error("Resend OTP error:", error);
+      res.status(500).json({ error: "Failed to resend OTP" });
     }
   });
 
@@ -221,19 +310,21 @@ export async function registerRoutes(
       const user = await storage.getUserByEmail(email.trim().toLowerCase());
       if (user) {
         try {
-          const token = crypto.randomBytes(32).toString("hex");
-          const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
-          await storage.createPasswordResetToken(user.id, token, expiresAt);
-
-          const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
-          const resetUrl = `${baseUrl}/reset-password/${token}`;
-          await sendPasswordResetEmail(user.email, resetUrl, user.name);
+          // Generate new OTP
+          await storage.deleteOtpVerificationsForUser(user.id, "password_reset");
+          const otp = Math.floor(100000 + Math.random() * 900000).toString();
+          const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+          await storage.createOtpVerification(user.id, otp, "password_reset", expiresAt);
+          const emailSent = await sendPasswordResetOTPEmail(user.email, otp, user.name);
+          if (!emailSent) {
+            return res.status(500).json({ error: "Failed to send password reset email. Please try again later." });
+          }
         } catch (emailErr) {
           console.error("Failed to send password reset email:", emailErr);
         }
       }
 
-      res.json({ message: "If an account with that email exists, a password reset link has been sent." });
+      res.json({ message: "If an account with that email exists, a password reset OTP has been sent." });
     } catch (error) {
       console.error("Forgot password error:", error);
       res.status(500).json({ error: "Failed to process request" });
@@ -242,31 +333,32 @@ export async function registerRoutes(
 
   app.post("/api/auth/reset-password", async (req, res) => {
     try {
-      const { token, newPassword } = req.body;
-      if (!token || !newPassword || typeof newPassword !== "string") {
-        return res.status(400).json({ error: "Token and new password are required" });
+      const { email, otp, newPassword } = req.body;
+      if (!email || !otp || !newPassword || typeof newPassword !== "string") {
+        return res.status(400).json({ error: "Email, OTP and new password are required" });
       }
 
       if (newPassword.length < 6) {
         return res.status(400).json({ error: "Password must be at least 6 characters" });
       }
 
-      const resetToken = await storage.getPasswordResetToken(token);
-      if (!resetToken) {
-        return res.status(400).json({ error: "Invalid or expired reset link" });
+      const user = await storage.getUserByEmail(email.toLowerCase());
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
       }
 
-      if (resetToken.used) {
-        return res.status(400).json({ error: "This reset link has already been used" });
+      const verification = await storage.getOtpVerification(user.id, otp, "password_reset");
+      if (!verification) {
+        return res.status(400).json({ error: "Invalid OTP" });
       }
 
-      if (new Date() > resetToken.expiresAt) {
-        return res.status(400).json({ error: "This reset link has expired" });
+      if (new Date() > verification.expiresAt) {
+        return res.status(400).json({ error: "OTP has expired" });
       }
 
       const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await storage.updateUser(resetToken.userId, { password: hashedPassword });
-      await storage.markPasswordResetTokenUsed(token);
+      await storage.updateUser(user.id, { password: hashedPassword });
+      await storage.deleteOtpVerificationsForUser(user.id, "password_reset");
 
       res.json({ message: "Password has been reset successfully" });
     } catch (error) {
@@ -1402,7 +1494,7 @@ Respond in JSON format:
 
   app.get("/api/quizzes/:id/submissions", requireInstructor, async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const quiz = await storage.getQuiz(id);
       if (!quiz) return res.status(404).json({ error: "Quiz not found" });
 
