@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, XCircle, Clock, FileText, AlertCircle, Trophy, Send } from "lucide-react";
 import type { Quiz, Question } from "@shared/schema";
+import { useAuth } from "@/lib/auth-context";
 
 interface PublicQuizData {
   quiz: Quiz;
@@ -24,9 +25,14 @@ interface PublicQuizData {
 export default function PublicQuizPage() {
   const { token } = useParams<{ token: string }>();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const { user, login } = useAuth();
   
   const [step, setStep] = useState<"identify" | "quiz" | "results">("identify");
-  const [identificationData, setIdentificationData] = useState<Record<string, string>>({});
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -36,6 +42,20 @@ export default function PublicQuizPage() {
     queryKey: [`/api/public/quiz/${token}`],
     enabled: !!token,
   });
+
+  // When quiz data loads and user is already logged in...
+  useEffect(() => {
+    if (!data || !user) return;
+    
+    if (data.canAttempt) {
+      // If attempt mode, redirect to the real quiz-taking interface which 
+      // handles course enrollment validation and official submissions.
+      setLocation(`/quiz/${data.quiz.id}/take`);
+    } else {
+      // If view mode, stay here and let them view it
+      setStep("quiz");
+    }
+  }, [data, user, setLocation]);
 
   const submitMutation = useMutation({
     mutationFn: async (payload: { identificationData: Record<string, string>; answers: { questionId: string; answer: string }[] }) => {
@@ -92,21 +112,29 @@ export default function PublicQuizPage() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleIdentificationSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const requiredFields = data?.requiredFields || ["name", "email"];
-    const allFilled = requiredFields.every(field => identificationData[field]?.trim());
-    
-    if (!allFilled) {
+    if (!username || !password) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields.",
+        description: "Please enter your username and password.",
         variant: "destructive",
       });
       return;
     }
     
-    setStep("quiz");
+    setIsLoggingIn(true);
+    const success = await login(username, password);
+    setIsLoggingIn(false);
+    
+    if (!success) {
+      toast({
+        title: "Login Failed",
+        description: "Invalid username or password.",
+        variant: "destructive"
+      });
+    }
+    // If successful, the useEffect above will trigger and redirect/update step.
   };
 
   const handleAnswerChange = (questionId: string, answer: string) => {
@@ -119,8 +147,9 @@ export default function PublicQuizPage() {
       answer,
     }));
     
+    // Fallback submit logic for view mode if needed
     submitMutation.mutate({
-      identificationData,
+      identificationData: {},
       answers: formattedAnswers,
     });
   };
@@ -159,7 +188,7 @@ export default function PublicQuizPage() {
     );
   }
 
-  const { quiz, questions, requiredFields, canAttempt } = data;
+  const { quiz, questions, canAttempt } = data;
 
   if (step === "identify") {
     return (
@@ -171,7 +200,7 @@ export default function PublicQuizPage() {
             </div>
             <CardTitle className="text-2xl">{quiz.title}</CardTitle>
             <CardDescription>
-              {quiz.description || "Complete the form below to access the quiz"}
+              {canAttempt ? "You must log in to access this quiz" : "Log in to view this quiz"}
             </CardDescription>
             <div className="flex flex-wrap gap-2 justify-center mt-4">
               {quiz.timeLimitMinutes && (
@@ -189,24 +218,32 @@ export default function PublicQuizPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleIdentificationSubmit} className="space-y-4">
-              {requiredFields.map(field => (
-                <div key={field} className="space-y-2">
-                  <Label htmlFor={field} className="capitalize">
-                    {field.replace(/_/g, " ")} *
-                  </Label>
-                  <Input
-                    id={field}
-                    data-testid={`input-${field}`}
-                    value={identificationData[field] || ""}
-                    onChange={(e) => setIdentificationData(prev => ({ ...prev, [field]: e.target.value }))}
-                    placeholder={`Enter your ${field.replace(/_/g, " ")}`}
-                    required
-                  />
-                </div>
-              ))}
-              <Button type="submit" className="w-full" data-testid="button-start-quiz">
-                {canAttempt ? "Start Quiz" : "View Quiz"}
+            <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter your username"
+                  required
+                  disabled={isLoggingIn}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  required
+                  disabled={isLoggingIn}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoggingIn}>
+                {isLoggingIn ? "Logging in..." : "Log In & Continue"}
               </Button>
             </form>
           </CardContent>
