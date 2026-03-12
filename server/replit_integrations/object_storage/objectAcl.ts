@@ -104,9 +104,13 @@ function createObjectAccessGroup(
 
 // Sets the ACL policy to the object metadata.
 export async function setObjectAclPolicy(
-  objectFile: File,
+  objectFile: File | { localBuffer: Buffer; path: string },
   aclPolicy: ObjectAclPolicy,
 ): Promise<void> {
+  if ("localBuffer" in objectFile) {
+    // Local storage doesn't support persistent metadata in this simple implementation
+    return;
+  }
   const [exists] = await objectFile.exists();
   if (!exists) {
     throw new Error(`Object not found: ${objectFile.name}`);
@@ -121,8 +125,12 @@ export async function setObjectAclPolicy(
 
 // Gets the ACL policy from the object metadata.
 export async function getObjectAclPolicy(
-  objectFile: File,
+  objectFile: File | { localBuffer: Buffer; path: string },
 ): Promise<ObjectAclPolicy | null> {
+  if ("localBuffer" in objectFile) {
+    // Return a default public policy for local uploads in development
+    return { owner: "local", visibility: "public" };
+  }
   const [metadata] = await objectFile.getMetadata();
   const aclPolicy = metadata?.metadata?.[ACL_POLICY_METADATA_KEY];
   if (!aclPolicy) {
@@ -138,7 +146,7 @@ export async function canAccessObject({
   requestedPermission,
 }: {
   userId?: string;
-  objectFile: File;
+  objectFile: File | { localBuffer: Buffer; path: string };
   requestedPermission: ObjectPermission;
 }): Promise<boolean> {
   // When this function is called, the acl policy is required.

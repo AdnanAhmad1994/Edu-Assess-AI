@@ -62,6 +62,24 @@ export function registerObjectStorageRoutes(app: Express): void {
     }
   });
 
+  // Local upload handler for PUT requests
+  app.put("/api/uploads/direct-upload/:uuid", async (req, res) => {
+    try {
+      const { uuid } = req.params;
+      const chunks: any[] = [];
+      
+      req.on('data', (chunk) => chunks.push(chunk));
+      req.on('end', async () => {
+        const buffer = Buffer.concat(chunks);
+        await objectStorageService.saveLocalObject(uuid, buffer);
+        res.status(200).send({ message: "File uploaded successfully" });
+      });
+    } catch (error) {
+      console.error("Local upload error:", error);
+      res.status(500).json({ error: "Failed to upload file locally" });
+    }
+  });
+
   /**
    * Serve uploaded objects.
    *

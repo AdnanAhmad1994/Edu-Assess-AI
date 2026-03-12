@@ -27,8 +27,19 @@ export const objectStorageClient = new Storage({
     },
     universe_domain: "googleapis.com",
   },
-  projectId: "",
+  projectId: "local-dev",
 });
+
+const isReplit = !!process.env.REPLIT_ID;
+import fs from "fs";
+import path from "path";
+import { promisify } from "util";
+const mkdir = promisify(fs.mkdir);
+const writeFile = promisify(fs.writeFile);
+const readFile = promisify(fs.readFile);
+const exists = promisify(fs.exists);
+
+const UPLOADS_DIR = path.resolve(process.cwd(), "server", "uploads");
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -95,8 +106,19 @@ export class ObjectStorageService {
   }
 
   // Downloads an object to the response.
-  async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
+  async downloadObject(file: File | { localBuffer: Buffer; path: string }, res: Response, cacheTtlSec: number = 3600) {
     try {
+      if ("localBuffer" in file) {
+        // Handle local file
+        res.set({
+          "Content-Type": "application/octet-stream", // Fallback, could be improved
+          "Content-Length": file.localBuffer.length,
+          "Cache-Control": "private, max-age=" + cacheTtlSec,
+        });
+        res.send(file.localBuffer);
+        return;
+      }
+
       // Get file metadata
       const [metadata] = await file.getMetadata();
       // Get the ACL policy for the object.
@@ -132,6 +154,12 @@ export class ObjectStorageService {
 
   // Gets the upload URL for an object entity.
   async getObjectEntityUploadURL(): Promise<string> {
+    if (!isReplit) {
+      const objectId = randomUUID();
+      // Return a local endpoint that we will implement in routes.ts
+      return `/api/uploads/direct-upload/${objectId}`;
+    }
+
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {
       throw new Error(
@@ -154,8 +182,26 @@ export class ObjectStorageService {
     });
   }
 
+  // Local helper to save a file to disk
+  async saveLocalObject(objectId: string, buffer: Buffer): Promise<void> {
+    if (!fs.existsSync(UPLOADS_DIR)) {
+      await mkdir(UPLOADS_DIR, { recursive: true });
+    }
+    const filePath = path.join(UPLOADS_DIR, objectId);
+    await writeFile(filePath, buffer);
+  }
+
+  // Local helper to read a file from disk
+  async getLocalObject(objectId: string): Promise<Buffer | null> {
+    const filePath = path.join(UPLOADS_DIR, objectId);
+    if (fs.existsSync(filePath)) {
+      return await readFile(filePath);
+    }
+    return null;
+  }
+
   // Gets the object entity file from the object path.
-  async getObjectEntityFile(objectPath: string): Promise<File> {
+  async getObjectEntityFile(objectPath: string): Promise<File | { localBuffer: Buffer; path: string }> {
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();
     }
@@ -166,6 +212,15 @@ export class ObjectStorageService {
     }
 
     const entityId = parts.slice(1).join("/");
+    
+    // Check local storage first if not on Replit
+    if (!isReplit) {
+      const buffer = await this.getLocalObject(entityId);
+      if (buffer) {
+        return { localBuffer: buffer, path: objectPath };
+      }
+    }
+
     let entityDir = this.getPrivateObjectDir();
     if (!entityDir.endsWith("/")) {
       entityDir = `${entityDir}/`;
