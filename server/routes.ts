@@ -736,6 +736,12 @@ export async function registerRoutes(
       if (!data.name || data.name.trim().length < 3) {
         return res.status(400).json({ error: "Course name must be at least 3 characters" });
       }
+
+      // Check if course code is unique
+      const existingCourse = await storage.getCourseByCode(data.code);
+      if (existingCourse) {
+        return res.status(400).json({ error: `Course code '${data.code}' is already in use` });
+      }
       
       const user = await storage.getUser(req.session.userId!);
       // If admin and provided an instructorId, use it. Otherwise default to themselves
@@ -813,8 +819,16 @@ export async function registerRoutes(
       }
 
       const createdCourses = [];
+      const skippedCodes = [];
       for (const courseData of validCourses) {
         try {
+          // Check for unique code during import
+          const existing = await storage.getCourseByCode(courseData.code);
+          if (existing) {
+            skippedCodes.push(courseData.code);
+            continue;
+          }
+
           const course = await storage.createCourse({
             ...courseData,
             instructorId: req.session.userId!,
@@ -826,12 +840,14 @@ export async function registerRoutes(
       }
 
       res.status(201).json({
-        message: `Successfully imported ${createdCourses.length} of ${validCourses.length} valid courses`,
+        message: `Successfully imported ${createdCourses.length} courses.${skippedCodes.length > 0 ? ` Skipped ${skippedCodes.length} duplicate codes.` : ""}`,
         imported: createdCourses.length,
+        skipped: skippedCodes.length,
         total: jsonData.length,
         valid: validCourses.length,
         courses: createdCourses,
         errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
+        skippedCodes: skippedCodes.length > 0 ? skippedCodes : undefined,
       });
     } catch (error) {
       console.error("Import courses error:", error);
@@ -862,6 +878,15 @@ export async function registerRoutes(
       }
 
       const updates = { ...req.body };
+      
+      // If code is being updated, check if it's already taken by another course
+      if (updates.code && updates.code !== course.code) {
+        const existingWithCode = await storage.getCourseByCode(updates.code);
+        if (existingWithCode) {
+          return res.status(400).json({ error: `Course code '${updates.code}' is already taken` });
+        }
+      }
+
       // Only admins can change the instructor of an existing course
       if (requestingUser?.role !== "admin") {
          delete updates.instructorId;

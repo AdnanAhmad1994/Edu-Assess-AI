@@ -34,6 +34,7 @@ export interface IStorage {
   // Courses
   getCourses(instructorId?: string): Promise<Course[]>;
   getCourse(id: string): Promise<Course | undefined>;
+  getCourseByCode(code: string): Promise<Course | undefined>;
   createCourse(course: InsertCourse): Promise<Course>;
   updateCourse(id: string, course: Partial<InsertCourse>): Promise<Course | undefined>;
   deleteCourse(id: string): Promise<void>;
@@ -369,6 +370,10 @@ export class MemStorage implements IStorage {
 
   async getCourse(id: string): Promise<Course | undefined> {
     return this.courses.get(id);
+  }
+
+  async getCourseByCode(code: string): Promise<Course | undefined> {
+    return Array.from(this.courses.values()).find(c => c.code === code);
   }
 
   async createCourse(insertCourse: InsertCourse): Promise<Course> {
@@ -1382,6 +1387,7 @@ export class DatabaseStorage implements IStorage {
     return instructorId ? rows.filter(c => c.instructorId === instructorId) : rows;
   }
   async getCourse(id: string) { return (await db!.select().from(courses).where(eq(courses.id, id)))[0]; }
+  async getCourseByCode(code: string) { return (await db!.select().from(courses).where(eq(courses.code, code)))[0]; }
   async createCourse(data: InsertCourse) { 
     return (await db!.insert(courses).values({ 
       ...data, 
