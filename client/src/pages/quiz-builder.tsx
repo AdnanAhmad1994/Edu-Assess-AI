@@ -47,11 +47,13 @@ const quizSchema = z.object({
   instructions: z.string().optional(),
   courseId: z.string().min(1, "Please select a course"),
   timeLimitMinutes: z.number().min(0).optional(),
-  passingScore: z.number().min(0).max(100).default(60),
+  passingScore: z.number().min(0).default(60),
   randomizeQuestions: z.boolean().default(true),
   randomizeOptions: z.boolean().default(true),
   showResults: z.boolean().default(true),
   proctored: z.boolean().default(false),
+  startDate: z.string().optional().nullable(),
+  endDate: z.string().optional().nullable(),
 });
 
 type QuizFormData = z.infer<typeof quizSchema>;
@@ -116,12 +118,15 @@ export default function QuizBuilderPage() {
       randomizeOptions: true,
       showResults: true,
       proctored: false,
+      startDate: null,
+      endDate: null,
     },
   });
 
   const createQuizMutation = useMutation({
     mutationFn: async (data: QuizFormData & { questions: QuestionInput[]; attachmentUrl?: string; attachmentType?: string; attachmentName?: string }) => {
-      return apiRequest("POST", "/api/quizzes", data);
+      const res = await apiRequest("POST", "/api/quizzes", data);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/quizzes"] });
@@ -429,13 +434,12 @@ export default function QuizBuilderPage() {
                   name="passingScore"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Passing Score (%)</FormLabel>
+                      <FormLabel>Total Marks</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
                           min={0}
-                          max={100}
-                          data-testid="input-passing-score"
+                          data-testid="input-total-marks"
                           {...field}
                           onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                         />
@@ -446,113 +450,51 @@ export default function QuizBuilderPage() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Quiz Attachment (Optional)</label>
-                <p className="text-xs text-muted-foreground">Attach a document or image that students can view while taking the quiz</p>
-                {quizAttachment ? (
-                  <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
-                    {quizAttachment.type.startsWith("image/") ? (
-                      <Image className="w-5 h-5 text-muted-foreground shrink-0" />
-                    ) : (
-                      <FileText className="w-5 h-5 text-muted-foreground shrink-0" />
-                    )}
-                    <span className="text-sm truncate flex-1">{quizAttachment.name}</span>
-                    {quizAttachment.type.startsWith("image/") && (
-                      <img src={quizAttachment.url} alt="Preview" className="w-16 h-16 object-cover rounded" />
-                    )}
-                    <Button type="button" variant="ghost" size="icon" onClick={() => setQuizAttachment(null)} data-testid="button-remove-quiz-attachment">
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <FileUploadButton
-                    onUpload={(file) => handleFileUpload(file, "attachment")}
-                    isUploading={isUploadingFile}
-                    accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
-                    label="Attach File"
-                    testId="button-attach-quiz-file"
-                  />
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Quiz Settings</CardTitle>
-              <CardDescription>Configure quiz behavior and proctoring</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="randomizeQuestions"
+                  name="startDate"
                   render={({ field }) => (
-                    <FormItem className="flex items-center justify-between gap-2 rounded-lg border p-3">
-                      <div className="space-y-0.5">
-                        <FormLabel>Randomize Questions</FormLabel>
-                        <FormDescription>Shuffle question order for each student</FormDescription>
-                      </div>
+                    <FormItem>
+                      <FormLabel>Start Date & Time</FormLabel>
                       <FormControl>
-                        <Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-randomize-questions" />
+                        <Input
+                          type="datetime-local"
+                          data-testid="input-start-date"
+                          value={field.value || ""}
+                          onChange={(e) => field.onChange(e.target.value)}
+                        />
                       </FormControl>
+                      <FormDescription>When the quiz becomes available</FormDescription>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
 
                 <FormField
                   control={form.control}
-                  name="randomizeOptions"
+                  name="endDate"
                   render={({ field }) => (
-                    <FormItem className="flex items-center justify-between gap-2 rounded-lg border p-3">
-                      <div className="space-y-0.5">
-                        <FormLabel>Randomize Options</FormLabel>
-                        <FormDescription>Shuffle MCQ answer options</FormDescription>
-                      </div>
+                    <FormItem>
+                      <FormLabel>End Date & Time</FormLabel>
                       <FormControl>
-                        <Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-randomize-options" />
+                        <Input
+                          type="datetime-local"
+                          data-testid="input-end-date"
+                          value={field.value || ""}
+                          onChange={(e) => field.onChange(e.target.value)}
+                        />
                       </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="showResults"
-                  render={({ field }) => (
-                    <FormItem className="flex items-center justify-between gap-2 rounded-lg border p-3">
-                      <div className="space-y-0.5">
-                        <FormLabel>Show Results</FormLabel>
-                        <FormDescription>Allow students to see their score</FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-show-results" />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="proctored"
-                  render={({ field }) => (
-                    <FormItem className="flex items-center justify-between gap-2 rounded-lg border p-3 border-primary/30 bg-primary/5">
-                      <div className="space-y-0.5">
-                        <FormLabel className="flex items-center gap-2">
-                          <Shield className="w-4 h-4 text-primary" />
-                          Enable Proctoring
-                        </FormLabel>
-                        <FormDescription>AI-powered anti-cheating monitoring</FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-proctored" />
-                      </FormControl>
+                      <FormDescription>When the quiz automatically closes</FormDescription>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
+
             </CardContent>
           </Card>
+
 
           <Card>
             <CardHeader>

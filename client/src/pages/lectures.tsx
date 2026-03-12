@@ -75,7 +75,8 @@ export default function LecturesPage() {
 
   const createLectureMutation = useMutation({
     mutationFn: async (data: { title: string; courseId: string; fileUrl: string; fileType: string }) => {
-      return apiRequest("POST", "/api/lectures", data);
+      const res = await apiRequest("POST", "/api/lectures", data);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lectures"] });
@@ -87,7 +88,8 @@ export default function LecturesPage() {
 
   const generateSummaryMutation = useMutation({
     mutationFn: async (lectureId: string) => {
-      return apiRequest("POST", `/api/lectures/${lectureId}/generate-summary`);
+      const res = await apiRequest("POST", `/api/lectures/${lectureId}/generate-summary`);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lectures"] });

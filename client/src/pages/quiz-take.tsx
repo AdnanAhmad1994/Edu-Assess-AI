@@ -85,9 +85,30 @@ export default function QuizTakePage() {
 
   const startQuizMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("POST", `/api/quiz/${id}/start`);
+      const res = await fetch(`/api/quiz/${id}/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (res.status === 409 && data.alreadyCompleted) {
+        // Student already submitted this quiz — redirect to results
+        return { alreadyCompleted: true, submissionId: data.submissionId };
+      }
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to start quiz");
+      }
+      return data;
     },
     onSuccess: (data: any) => {
+      if (data.alreadyCompleted) {
+        toast({
+          title: "Quiz already completed",
+          description: "Redirecting to your results...",
+        });
+        setLocation(`/quiz/${id}/results/${data.submissionId}`);
+        return;
+      }
       console.log("[QUIZ] Quiz session started:", data.submissionId);
       setSubmissionId(data.submissionId);
       if (quiz?.timeLimitMinutes) {
@@ -98,7 +119,7 @@ export default function QuizTakePage() {
       console.error("[QUIZ] Failed to start quiz:", error);
       toast({
         title: "Failed to initialize quiz",
-        description: "Please refresh the page and try again.",
+        description: error.message || "Please refresh the page and try again.",
         variant: "destructive",
       });
     },
@@ -106,7 +127,8 @@ export default function QuizTakePage() {
 
   const submitQuizMutation = useMutation({
     mutationFn: async (data: { submissionId: string; answers: Answer[] }) => {
-      return apiRequest("POST", `/api/quiz/${id}/submit`, data);
+      const res = await apiRequest("POST", `/api/quiz/${id}/submit`, data);
+      return res.json();
     },
     onSuccess: (data: any) => {
       console.log("[QUIZ] Quiz submitted successfully:", data.submissionId);

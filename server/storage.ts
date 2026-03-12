@@ -123,6 +123,17 @@ export interface IStorage {
     totalStudents: number;
     pendingGrading: number;
     recentSubmissions: number;
+    averageScore: number;
+    recentSubmissionsList: Array<{
+      id: string;
+      studentName: string;
+      quizTitle: string;
+      score: number | null;
+      totalPoints: number | null;
+      percentage: number | null;
+      submittedAt: Date | null;
+    }>;
+    scoreDistribution: Array<{ range: string; count: number }>;
   }>;
 
   // Analytics
@@ -186,6 +197,119 @@ export class MemStorage implements IStorage {
   private chatCommands: Map<string, ChatCommand> = new Map();
   private passwordResetTokens: Map<string, PasswordResetToken> = new Map();
 
+  constructor() {
+    this.seed();
+  }
+
+  private seed() {
+    // Seed instructor and students
+    const instructorId = "ali-id";
+    this.users.set(instructorId, {
+      id: instructorId,
+      username: "ali",
+      password: "$2a$10$v0k49p.E.M8G/D.8M/vI/OqI8.I1W1Z0S.z7G.F0Z0Z0Z0Z0Z0Z0Z", // 'ali'
+      email: "ali@example.com",
+      name: "Ali Instructor",
+      role: "instructor",
+      avatarUrl: null,
+      groqApiKey: null,
+      groqApiModel: null,
+      activeAiProvider: "groq",
+      patternHash: null,
+      createdAt: new Date()
+    });
+
+    const studentIds = ["s1", "s2", "s3", "s4", "s5"];
+    const studentNames = ["Ahmed", "Sara", "Zain", "Fatima", "Omar"];
+    
+    studentIds.forEach((sid, i) => {
+      this.users.set(sid, {
+        id: sid,
+        username: `student${i+1}`,
+        password: "hashed_password",
+        email: `student${i+1}@example.com`,
+        name: studentNames[i],
+        role: "student",
+        avatarUrl: null,
+        groqApiKey: null,
+        groqApiModel: null,
+        activeAiProvider: "groq",
+        patternHash: null,
+        createdAt: new Date()
+      });
+    });
+
+    // Seed Course
+    const courseId = "c1";
+    this.courses.set(courseId, {
+      id: courseId,
+      name: "Web Development 101",
+      code: "CS101",
+      description: "Intro to web development",
+      semester: "Fall 2026",
+      instructorId: instructorId,
+      createdAt: new Date()
+    });
+
+    // Seed Enrollments
+    studentIds.forEach(sid => {
+      this.enrollments.set(`${courseId}-${sid}`, {
+        id: `${courseId}-${sid}`,
+        courseId,
+        studentId: sid,
+        enrolledAt: new Date()
+      });
+    });
+
+    // Seed Quiz
+    const quizId = "q1";
+    this.quizzes.set(quizId, {
+      id: quizId,
+      courseId,
+      title: "Midterm Assessment",
+      description: "HTML & CSS basics",
+      instructions: "Answer all questions",
+      timeLimitMinutes: 30,
+      passingScore: 60,
+      randomizeQuestions: true,
+      randomizeOptions: true,
+      showResults: true,
+      proctored: false,
+      violationThreshold: 5,
+      attachmentUrl: null,
+      attachmentType: null,
+      attachmentName: null,
+      status: "published",
+      startDate: null,
+      endDate: null,
+      publicAccessToken: null,
+      publicLinkPermission: null,
+      publicLinkEnabled: false,
+      requiredIdentificationFields: null,
+      createdAt: new Date()
+    });
+
+    // Seed Submissions
+    const scores = [85, 45, 92, 78, 55];
+    studentIds.forEach((sid, i) => {
+      const subId = `sub-${sid}`;
+      this.quizSubmissions.set(subId, {
+        id: subId,
+        quizId,
+        studentId: sid,
+        answers: [],
+        score: scores[i],
+        totalPoints: 100,
+        percentage: scores[i],
+        status: "graded",
+        startedAt: new Date(Date.now() - 3600000),
+        submittedAt: new Date(Date.now() - 1800000),
+        gradedAt: new Date(Date.now() - 900000),
+        aiFeedback: "Good job!"
+      });
+    });
+  }
+
   // Users
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
@@ -212,20 +336,10 @@ export class MemStorage implements IStorage {
       id,
       role: insertUser.role ?? "student",
       avatarUrl: insertUser.avatarUrl ?? null,
-      geminiApiKey: insertUser.geminiApiKey ?? null,
-      patternHash: insertUser.patternHash ?? null,
-      // Multi-provider AI keys (all nullable by default)
-      openaiApiKey: insertUser.openaiApiKey ?? null,
-      openrouterApiKey: insertUser.openrouterApiKey ?? null,
-      grokApiKey: insertUser.grokApiKey ?? null,
       groqApiKey: insertUser.groqApiKey ?? null,
       groqApiModel: (insertUser as any).groqApiModel ?? null,
-      kimiApiKey: insertUser.kimiApiKey ?? null,
-      anthropicApiKey: insertUser.anthropicApiKey ?? null,
-      customApiKey: insertUser.customApiKey ?? null,
-      customApiBaseUrl: insertUser.customApiBaseUrl ?? null,
-      customApiModel: insertUser.customApiModel ?? null,
-      activeAiProvider: insertUser.activeAiProvider ?? "gemini",
+      activeAiProvider: insertUser.activeAiProvider ?? "groq",
+      patternHash: insertUser.patternHash ?? null,
       createdAt: new Date(),
     };
     this.users.set(id, user);
@@ -663,18 +777,31 @@ export class MemStorage implements IStorage {
   }
 
   // Dashboard Stats
-  async getDashboardStats(instructorId: string): Promise<{
+  async getDashboardStats(instructorId?: string): Promise<{
     totalCourses: number;
     totalQuizzes: number;
     totalAssignments: number;
     totalStudents: number;
     pendingGrading: number;
     recentSubmissions: number;
+    averageScore: number;
+    recentSubmissionsList: Array<{
+      id: string;
+      studentName: string;
+      quizTitle: string;
+      score: number | null;
+      totalPoints: number | null;
+      percentage: number | null;
+      submittedAt: Date | null;
+    }>;
+    scoreDistribution: Array<{ range: string; count: number }>;
   }> {
     const courses = await this.getCourses(instructorId);
     const courseIds = new Set(courses.map(c => c.id));
 
-    const quizzes = (await this.getQuizzes()).filter(q => courseIds.has(q.courseId));
+    const allQuizzes = await this.getQuizzes();
+    const instructorQuizzes = allQuizzes.filter(q => courseIds.has(q.courseId));
+    const quizIds = new Set(instructorQuizzes.map(q => q.id));
     const assignments = (await this.getAssignments()).filter(a => courseIds.has(a.courseId));
 
     let totalStudents = 0;
@@ -683,26 +810,89 @@ export class MemStorage implements IStorage {
       totalStudents += enrollments.length;
     }
 
-    const quizSubmissions = Array.from(this.quizSubmissions.values())
-      .filter(s => quizzes.some(q => q.id === s.quizId));
-    const assignmentSubmissions = Array.from(this.assignmentSubmissions.values())
+    const publicSubmissions = Array.from(this.publicQuizSubmissions.values())
+      .filter(s => instructorQuizzes.some(q => q.id === s.quizId));
+
+    const allQuizSubs = [
+      ...Array.from(this.quizSubmissions.values()).filter(s => quizIds.has(s.quizId)), 
+      ...publicSubmissions
+    ];
+
+    const currentAssignmentSubs = Array.from(this.assignmentSubmissions.values())
       .filter(s => assignments.some(a => a.id === s.assignmentId));
 
-    const pendingGrading = [...quizSubmissions, ...assignmentSubmissions]
-      .filter(s => s.status === "submitted").length;
+    const allSubmissions = [...allQuizSubs, ...currentAssignmentSubs];
+    const pendingGrading = allSubmissions.filter(s => s.status === "submitted").length;
 
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const recentSubmissions = [...quizSubmissions, ...assignmentSubmissions]
+    const recentSubmissions = allSubmissions
       .filter(s => s.submittedAt && new Date(s.submittedAt) > oneWeekAgo).length;
+
+    // Calculate average score for graded quizzes
+    const gradedQuizSubs = allQuizSubs.filter(s => s.percentage !== null);
+    const averageScore = gradedQuizSubs.length > 0
+      ? Math.round(gradedQuizSubs.reduce((acc, s) => acc + (s.percentage ?? 0), 0) / gradedQuizSubs.length)
+      : 0;
+
+    // Get list of recent submissions (enriched)
+    const recentSubmissionsList = allQuizSubs
+      .filter(s => s.submittedAt)
+      .sort((a, b) => new Date(b.submittedAt!).getTime() - new Date(a.submittedAt!).getTime())
+      .slice(0, 10)
+      .map(s => {
+        let studentName = "Unknown Student";
+        if ('studentId' in s) {
+          const student = this.users.get(s.studentId);
+          studentName = student?.name || "Unknown Student";
+        } else if ('identificationData' in s) {
+          const idData = s.identificationData as any;
+          studentName = idData?.name || idData?.email || "Anonymous";
+        }
+
+        const quiz = this.quizzes.get(s.quizId);
+        return {
+          id: s.id,
+          studentName,
+          quizTitle: quiz?.title || "Unknown Quiz",
+          score: s.score,
+          totalPoints: s.totalPoints,
+          percentage: s.percentage,
+          submittedAt: s.submittedAt
+        };
+      });
 
     return {
       totalCourses: courses.length,
-      totalQuizzes: quizzes.length,
+      totalQuizzes: instructorQuizzes.length,
       totalAssignments: assignments.length,
       totalStudents,
       pendingGrading,
       recentSubmissions,
+      averageScore,
+      recentSubmissionsList,
+      scoreDistribution: this.calculateScoreDistribution(allQuizSubs)
     };
+  }
+
+  private calculateScoreDistribution(submissions: any[]): Array<{ range: string; count: number }> {
+    const distribution = [
+      { range: "0-20", count: 0 },
+      { range: "21-40", count: 0 },
+      { range: "41-60", count: 0 },
+      { range: "61-80", count: 0 },
+      { range: "81-100", count: 0 },
+    ];
+
+    submissions.forEach(s => {
+      if (s.percentage === null) return;
+      if (s.percentage <= 20) distribution[0].count++;
+      else if (s.percentage <= 40) distribution[1].count++;
+      else if (s.percentage <= 60) distribution[2].count++;
+      else if (s.percentage <= 80) distribution[3].count++;
+      else distribution[4].count++;
+    });
+
+    return distribution;
   }
 
   // Public Quiz Submissions
@@ -850,8 +1040,13 @@ export class MemStorage implements IStorage {
     const quizIds = new Set(allQuizzes.map(q => q.id));
 
     // All graded quiz submissions in scope
-    const allSubmissions = Array.from(this.quizSubmissions.values())
+    const guestSubmissions = Array.from(this.publicQuizSubmissions.values())
       .filter(s => quizIds.has(s.quizId) && (s.status === "graded" || s.status === "submitted") && s.percentage !== null);
+
+    const quizSubs = Array.from(this.quizSubmissions.values())
+      .filter(s => quizIds.has(s.quizId) && (s.status === "graded" || s.status === "submitted") && s.percentage !== null);
+
+    const allSubmissions = [...quizSubs, ...guestSubmissions];
 
     const totalSubmissions = allSubmissions.length;
     const averageScore = totalSubmissions > 0
@@ -910,17 +1105,31 @@ export class MemStorage implements IStorage {
 
     // Top/low performers
     const studentScoreMap = new Map<string, number[]>();
+    const studentNameMap = new Map<string, string>();
+
     for (const s of allSubmissions) {
-      if (!studentScoreMap.has(s.studentId)) studentScoreMap.set(s.studentId, []);
-      studentScoreMap.get(s.studentId)!.push(s.percentage ?? 0);
+      let key = "";
+      let name = "Unknown";
+      if ('studentId' in s) {
+        key = s.studentId;
+        name = this.users.get(s.studentId)?.name || "Unknown";
+      } else if ('identificationData' in s) {
+        const idData = s.identificationData as any;
+        key = idData?.email || idData?.name || s.id;
+        name = idData?.name || idData?.email || "Anonymous";
+      }
+
+      if (!studentScoreMap.has(key)) {
+        studentScoreMap.set(key, []);
+        studentNameMap.set(key, name);
+      }
+      studentScoreMap.get(key)!.push(s.percentage ?? 0);
     }
-    const studentAverages = await Promise.all(
-      Array.from(studentScoreMap.entries()).map(async ([studentId, scores]) => {
-        const user = this.users.get(studentId);
-        const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-        return { studentId, name: user?.name ?? "Unknown", score: avg, quizCount: scores.length };
-      })
-    );
+
+    const studentAverages = Array.from(studentScoreMap.entries()).map(([key, scores]) => {
+      const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+      return { studentId: key, name: studentNameMap.get(key)!, score: avg, quizCount: scores.length };
+    });
     studentAverages.sort((a, b) => b.score - a.score);
     const topPerformers = studentAverages.slice(0, 5);
     const lowPerformers = [...studentAverages].reverse().slice(0, 5);
@@ -1323,22 +1532,122 @@ export class DatabaseStorage implements IStorage {
   async updateChatCommand(id: string, data: Partial<ChatCommand>) { return (await db!.update(chatCommands).set(data).where(eq(chatCommands.id, id)).returning())[0]; }
 
   // Dashboard Stats
-  async getDashboardStats(instructorId?: string) {
-    // Basic implementation to satisfy interface
+  async getDashboardStats(instructorId?: string): Promise<{
+    totalCourses: number;
+    totalQuizzes: number;
+    totalAssignments: number;
+    totalStudents: number;
+    pendingGrading: number;
+    recentSubmissions: number;
+    averageScore: number;
+    recentSubmissionsList: Array<{
+      id: string;
+      studentName: string;
+      quizTitle: string;
+      score: number | null;
+      totalPoints: number | null;
+      percentage: number | null;
+      submittedAt: Date | null;
+    }>;
+    scoreDistribution: Array<{ range: string; count: number }>;
+  }> {
     const allCourses = await this.getCourses(instructorId);
+    const courseIds = new Set(allCourses.map(c => c.id));
+    
     const allQuizzes = await this.getQuizzes();
+    const instructorQuizzes = allQuizzes.filter(q => courseIds.has(q.courseId));
+    const quizIds = new Set(instructorQuizzes.map(q => q.id));
+
     const allAssignments = await this.getAssignments();
-    const allUsers = await this.getUsers("student");
-    const allSubs = await this.getQuizSubmissions();
+    const instructorAssignments = allAssignments.filter(a => courseIds.has(a.courseId));
+
+    const allEnrollments = await db!.select().from(enrollments);
+    const instructorEnrollments = allEnrollments.filter(e => courseIds.has(e.courseId));
+    const totalStudents = new Set(instructorEnrollments.map(e => e.studentId)).size;
+
+    const allSubsRaw = await db!.select().from(quizSubmissions);
+    const instructorSubs = allSubsRaw.filter(s => quizIds.has(s.quizId));
+
+    const publicSubsRaw = await db!.select().from(publicQuizSubmissions);
+    const instructorPublicSubs = publicSubsRaw.filter(s => quizIds.has(s.quizId));
+
+    const allQuizSubs = [...instructorSubs, ...instructorPublicSubs];
+
+    const allAssignmentSubsRaw = await db!.select().from(assignmentSubmissions);
+    const instructorAssignmentSubs = allAssignmentSubsRaw.filter(s => instructorAssignments.some(a => a.id === s.assignmentId));
+
+    const combinedSubs = [...allQuizSubs, ...instructorAssignmentSubs];
+    const pendingGrading = combinedSubs.filter(s => s.status === "submitted").length;
+
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const recentSubmissionsCount = combinedSubs.filter(s => s.submittedAt && new Date(s.submittedAt) > oneWeekAgo).length;
+
+    // Average Score
+    const gradedSubs = allQuizSubs.filter(s => s.percentage !== null);
+    const averageScore = gradedSubs.length > 0
+      ? Math.round(gradedSubs.reduce((acc, s) => acc + (s.percentage ?? 0), 0) / gradedSubs.length)
+      : 0;
+
+    // Recent Submissions List
+    const recentSubsEnriched = [];
+    const recentRaw = allQuizSubs
+      .filter(s => s.submittedAt)
+      .sort((a, b) => new Date(b.submittedAt!).getTime() - new Date(a.submittedAt!).getTime())
+      .slice(0, 10);
+
+    for (const s of recentRaw) {
+      let studentName = "Unknown Student";
+      if ('studentId' in s) {
+        const student = (await db!.select().from(users).where(eq(users.id, s.studentId)))[0];
+        studentName = student?.name || "Unknown Student";
+      } else if ('identificationData' in s) {
+        const idData = s.identificationData as any;
+        studentName = idData?.name || idData?.email || "Anonymous";
+      }
+      const quiz = (await db!.select().from(quizzes).where(eq(quizzes.id, s.quizId)))[0];
+      recentSubsEnriched.push({
+        id: s.id,
+        studentName,
+        quizTitle: quiz?.title || "Unknown Quiz",
+        score: s.score,
+        totalPoints: s.totalPoints,
+        percentage: s.percentage,
+        submittedAt: s.submittedAt
+      });
+    }
 
     return {
       totalCourses: allCourses.length,
-      totalQuizzes: allQuizzes.filter(q => allCourses.some(c => c.id === q.courseId)).length,
-      totalAssignments: allAssignments.filter(a => allCourses.some(c => c.id === a.courseId)).length,
-      totalStudents: allUsers.length,
-      pendingGrading: allSubs.filter(s => s.status === "submitted").length,
-      recentSubmissions: allSubs.length > 5 ? 5 : allSubs.length
+      totalQuizzes: instructorQuizzes.length,
+      totalAssignments: instructorAssignments.length,
+      totalStudents,
+      pendingGrading,
+      recentSubmissions: recentSubmissionsCount,
+      averageScore,
+      recentSubmissionsList: recentSubsEnriched,
+      scoreDistribution: this.calculateScoreDistribution(instructorSubs)
     };
+  }
+
+  private calculateScoreDistribution(submissions: any[]): Array<{ range: string; count: number }> {
+    const distribution = [
+      { range: "0-20", count: 0 },
+      { range: "21-40", count: 0 },
+      { range: "41-60", count: 0 },
+      { range: "61-80", count: 0 },
+      { range: "81-100", count: 0 },
+    ];
+
+    submissions.forEach(s => {
+      if (s.percentage === null) return;
+      if (s.percentage <= 20) distribution[0].count++;
+      else if (s.percentage <= 40) distribution[1].count++;
+      else if (s.percentage <= 60) distribution[2].count++;
+      else if (s.percentage <= 80) distribution[3].count++;
+      else distribution[4].count++;
+    });
+
+    return distribution;
   }
 
   // Student Performance
@@ -1400,14 +1709,140 @@ export class DatabaseStorage implements IStorage {
 
   // Analytics
   async getCourseAnalytics(courseId?: string, instructorId?: string) {
+    // Resolve courses in scope
+    let allCoursesList: Course[] = [];
+    if (courseId) {
+      const c = await this.getCourse(courseId);
+      if (c) allCoursesList = [c];
+    } else if (instructorId) {
+      allCoursesList = await this.getCourses(instructorId);
+    } else {
+      allCoursesList = await db!.select().from(courses);
+    }
+
+    const courseIds = new Set(allCoursesList.map(c => c.id));
+    const allQuizzes = (await db!.select().from(quizzes)).filter(q => courseIds.has(q.courseId));
+    const quizIds = new Set(allQuizzes.map(q => q.id));
+
+    // Get all graded/submitted submissions for these quizzes
+    const quizSubs = (await db!.select().from(quizSubmissions))
+      .filter(s => quizIds.has(s.quizId) && (s.status === "graded" || s.status === "submitted") && s.percentage !== null);
+
+    const publicSubs = (await db!.select().from(publicQuizSubmissions))
+      .filter(s => quizIds.has(s.quizId) && (s.status === "graded" || s.status === "submitted") && s.percentage !== null);
+
+    const allSubmissions = [...quizSubs, ...publicSubs];
+
+    const totalSubmissions = allSubmissions.length;
+    const averageScore = totalSubmissions > 0
+      ? Math.round(allSubmissions.reduce((sum, s) => sum + (s.percentage ?? 0), 0) / totalSubmissions)
+      : 0;
+
+    // Total students (unique)
+    const uniqueStudentIds = new Set<string>();
+    const instructorEnrollments = (await db!.select().from(enrollments)).filter(e => courseIds.has(e.courseId));
+    instructorEnrollments.forEach(e => uniqueStudentIds.add(e.studentId));
+    const totalStudents = uniqueStudentIds.size;
+
+    // Pass rate
+    const passingSubmissions = allSubmissions.filter(s => {
+      const quiz = allQuizzes.find(q => q.id === s.quizId);
+      const passingScore = quiz?.passingScore ?? 60;
+      return (s.percentage ?? 0) >= passingScore;
+    });
+    const passRate = totalSubmissions > 0 ? Math.round((passingSubmissions.length / totalSubmissions) * 100) : 0;
+
+    // Score distribution
+    const scoreDistribution = [
+      { range: "0-20", count: 0 },
+      { range: "21-40", count: 0 },
+      { range: "41-60", count: 0 },
+      { range: "61-80", count: 0 },
+      { range: "81-100", count: 0 },
+    ];
+    for (const s of allSubmissions) {
+      const pct = s.percentage ?? 0;
+      if (pct <= 20) scoreDistribution[0].count++;
+      else if (pct <= 40) scoreDistribution[1].count++;
+      else if (pct <= 60) scoreDistribution[2].count++;
+      else if (pct <= 80) scoreDistribution[3].count++;
+      else scoreDistribution[4].count++;
+    }
+
+    // Performance trend (daily for chart)
+    const weekMap = new Map<string, number[]>();
+    const sorted = [...allSubmissions].filter(s => s.submittedAt).sort((a, b) => new Date(a.submittedAt!).getTime() - new Date(b.submittedAt!).getTime());
+    for (const s of sorted) {
+      const d = new Date(s.submittedAt!);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (!weekMap.has(key)) weekMap.set(key, []);
+      weekMap.get(key)!.push(s.percentage ?? 0);
+    }
+    const performanceTrend = Array.from(weekMap.entries()).map(([date, scores]) => ({
+      date,
+      average: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
+    })).slice(-10); // Last 10 days
+
+    // Performers logic (Top/Low)
+    const studentScoreMap = new Map<string, number[]>();
+    const studentNameMap = new Map<string, string>();
+    const allUsers = await db!.select().from(users);
+
+    for (const s of allSubmissions) {
+      let key = "";
+      let name = "Unknown";
+      if ('studentId' in s) {
+        key = s.studentId;
+        name = allUsers.find(u => u.id === s.studentId)?.name || "Unknown";
+      } else if ('identificationData' in s) {
+        const idData = s.identificationData as any;
+        key = idData?.email || idData?.name || s.id;
+        name = idData?.name || idData?.email || "Anonymous";
+      }
+
+      if (!studentScoreMap.has(key)) {
+        studentScoreMap.set(key, []);
+        studentNameMap.set(key, name);
+      }
+      studentScoreMap.get(key)!.push(s.percentage ?? 0);
+    }
+
+    const studentAverages = Array.from(studentScoreMap.entries()).map(([key, scores]) => {
+      const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+      return { studentId: key, name: studentNameMap.get(key)!, score: avg, quizCount: scores.length };
+    });
+    studentAverages.sort((a, b) => b.score - a.score);
+    const topPerformers = studentAverages.slice(0, 5);
+    const lowPerformers = [...studentAverages].reverse().slice(0, 5);
+
+    // Quiz Stats
+    const quizStats = allQuizzes.map(quiz => {
+      const subs = allSubmissions.filter(s => s.quizId === quiz.id);
+      const avgScore = subs.length > 0 ? Math.round(subs.reduce((sum, s) => sum + (s.percentage ?? 0), 0) / subs.length) : 0;
+      const passing = subs.filter(s => (s.percentage ?? 0) >= (quiz.passingScore ?? 60));
+      const qPassRate = subs.length > 0 ? Math.round((passing.length / subs.length) * 100) : 0;
+      return { quizId: quiz.id, name: quiz.title, avgScore, submissions: subs.length, passRate: qPassRate };
+    });
+
+    // Violations
+    const allViolations = (await db!.select().from(proctoringViolations)).filter(v => {
+      const sub = allSubmissions.find(s => s.id === v.submissionId);
+      return sub !== undefined;
+    });
+    const violationTypeMap = new Map<string, number>();
+    for (const v of allViolations) {
+      violationTypeMap.set(v.type, (violationTypeMap.get(v.type) ?? 0) + 1);
+    }
+    const violationStats = Array.from(violationTypeMap.entries()).map(([type, count]) => ({ type, count }));
+
     return {
-      overview: { totalStudents: 0, averageScore: 0, passRate: 0, totalSubmissions: 0 },
-      scoreDistribution: [],
-      performanceTrend: [],
-      topPerformers: [],
-      lowPerformers: [],
-      quizStats: [],
-      violationStats: []
+      overview: { totalStudents, averageScore, passRate, totalSubmissions },
+      scoreDistribution,
+      performanceTrend,
+      topPerformers,
+      lowPerformers,
+      quizStats,
+      violationStats
     };
   }
 
@@ -1415,14 +1850,88 @@ export class DatabaseStorage implements IStorage {
   async getGradebook(courseId: string) {
     const course = await this.getCourse(courseId);
     if (!course) throw new Error("Course not found");
-    return {
-      course,
-      quizzes: [],
-      assignments: [],
-      students: [],
-      quizSummary: [],
-      assignmentSummary: []
-    };
+
+    const courseQuizzes = (await db!.select().from(quizzes)).filter(q => q.courseId === courseId);
+    const courseAssignments = (await db!.select().from(assignments)).filter(a => a.courseId === courseId);
+    const courseEnrollments = (await db!.select().from(enrollments)).filter(e => e.courseId === courseId);
+    const studentIds = courseEnrollments.map(e => e.studentId);
+
+    const allUsers = await db!.select().from(users);
+    const quizIds = courseQuizzes.map(q => q.id);
+    const assignmentIds = courseAssignments.map(a => a.id);
+
+    const quizSubs = (await db!.select().from(quizSubmissions))
+      .filter(s => quizIds.includes(s.quizId) && studentIds.includes(s.studentId));
+    const assignmentSubs = (await db!.select().from(assignmentSubmissions))
+      .filter(s => assignmentIds.includes(s.assignmentId) && studentIds.includes(s.studentId));
+
+    const students = courseEnrollments.map(enrollment => {
+      const student = allUsers.find(u => u.id === enrollment.studentId);
+      if (!student) return null;
+
+      const quizResults = courseQuizzes.map(quiz => {
+        const sub = quizSubs.find(s => s.quizId === quiz.id && s.studentId === enrollment.studentId);
+        return {
+          quizId: quiz.id,
+          quizTitle: quiz.title,
+          score: sub?.score ?? null,
+          percentage: sub?.percentage ?? null,
+          status: sub?.status ?? "not_attempted",
+        };
+      });
+
+      const assignmentResults = courseAssignments.map(assignment => {
+        const sub = assignmentSubs.find(s => s.assignmentId === assignment.id && s.studentId === enrollment.studentId);
+        return {
+          assignmentId: assignment.id,
+          assignmentTitle: assignment.title,
+          score: sub?.score ?? null,
+          maxScore: assignment.maxScore,
+          status: sub?.status ?? "not_submitted",
+        };
+      });
+
+      const quizPercentages = quizResults.filter(r => r.percentage !== null).map(r => r.percentage as number);
+      const assignmentPercentages = assignmentResults
+        .filter(r => r.score !== null && r.maxScore > 0)
+        .map(r => Math.round(((r.score as number) / r.maxScore) * 100));
+      const allPercentages = [...quizPercentages, ...assignmentPercentages];
+      const overallAverage = allPercentages.length > 0
+        ? Math.round(allPercentages.reduce((a, b) => a + b, 0) / allPercentages.length)
+        : null;
+
+      return { student, quizResults, assignmentResults, overallAverage };
+    }).filter((s): s is NonNullable<typeof s> => s !== null);
+
+    // Quiz summary: best/worst/average per quiz
+    const quizSummary = courseQuizzes.map(quiz => {
+      const subs = quizSubs.filter(s => s.quizId === quiz.id && s.percentage !== null);
+      const percentages = subs.map(s => s.percentage as number);
+      return {
+        quizId: quiz.id,
+        title: quiz.title,
+        best: percentages.length > 0 ? Math.max(...percentages) : null,
+        worst: percentages.length > 0 ? Math.min(...percentages) : null,
+        average: percentages.length > 0 ? Math.round(percentages.reduce((a, b) => a + b, 0) / percentages.length) : null,
+        count: percentages.length,
+      };
+    });
+
+    // Assignment summary: best/worst/average per assignment
+    const assignmentSummary = courseAssignments.map(assignment => {
+      const subs = assignmentSubs.filter(s => s.assignmentId === assignment.id && s.score !== null && assignment.maxScore > 0);
+      const percentages = subs.map(s => Math.round(((s.score as number) / assignment.maxScore) * 100));
+      return {
+        assignmentId: assignment.id,
+        title: assignment.title,
+        best: percentages.length > 0 ? Math.max(...percentages) : null,
+        worst: percentages.length > 0 ? Math.min(...percentages) : null,
+        average: percentages.length > 0 ? Math.round(percentages.reduce((a, b) => a + b, 0) / percentages.length) : null,
+        count: percentages.length,
+      };
+    });
+
+    return { course, quizzes: courseQuizzes, assignments: courseAssignments, students, quizSummary, assignmentSummary };
   }
 }
 

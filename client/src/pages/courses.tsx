@@ -83,7 +83,8 @@ export default function CoursesPage() {
 
   const createCourseMutation = useMutation({
     mutationFn: async (data: CourseFormData) => {
-      return apiRequest("POST", "/api/courses", data);
+      const res = await apiRequest("POST", "/api/courses", data);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
@@ -98,7 +99,8 @@ export default function CoursesPage() {
 
   const updateCourseMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: CourseFormData }) => {
-      return apiRequest("PUT", `/api/courses/${id}`, data);
+      const res = await apiRequest("PUT", `/api/courses/${id}`, data);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
@@ -113,7 +115,8 @@ export default function CoursesPage() {
 
   const deleteCourseMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest("DELETE", `/api/courses/${id}`);
+      const res = await apiRequest("DELETE", `/api/courses/${id}`);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/courses"] });

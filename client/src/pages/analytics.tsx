@@ -400,31 +400,41 @@ export default function AnalyticsPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.quizStats.map((quiz, index) => (
-                  <tr key={index} className="border-b last:border-0" data-testid={`quiz-stat-${index}`}>
-                    <td className="py-3 px-4 font-medium">{quiz.name}</td>
-                    <td className="py-3 px-4 text-center">{quiz.submissions}</td>
-                    <td className="py-3 px-4 text-center">
-                      <Badge variant={quiz.avgScore >= 70 ? "default" : "secondary"}>
-                        {quiz.avgScore}%
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <Badge
-                        variant="outline"
-                        className={
-                          quiz.passRate >= 80
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : quiz.passRate >= 60
-                            ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                        }
-                      >
-                        {quiz.passRate}%
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
+                {data.quizStats.map((quiz, index) => {
+                  const passed = quiz.passRate >= 70;
+                  return (
+                    <tr key={index} className="border-b last:border-0" data-testid={`quiz-stat-${index}`}>
+                      <td className="py-3 px-4 font-medium">{quiz.name}</td>
+                      <td className="py-3 px-4 text-center">{quiz.submissions}</td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <Badge variant={quiz.avgScore >= 70 ? "default" : "secondary"}>
+                            {quiz.avgScore}%
+                          </Badge>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <Badge
+                            variant="outline"
+                            className={
+                              quiz.passRate >= 80
+                                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200"
+                                : quiz.passRate >= 60
+                                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200"
+                                : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200"
+                            }
+                          >
+                            {quiz.passRate}%
+                          </Badge>
+                          <span className={`text-[10px] uppercase font-bold ${passed ? "text-green-600" : "text-red-600"}`}>
+                            {passed ? "Pass" : "Fail"}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

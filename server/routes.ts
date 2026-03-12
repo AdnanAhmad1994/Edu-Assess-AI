@@ -996,6 +996,31 @@ Respond in JSON format:
     }
   });
 
+  // GET student's own quiz submissions (for showing completion status on quiz listing)
+  app.get("/api/my-quiz-submissions", requireAuth, async (req, res) => {
+    try {
+      const submissions = await storage.getQuizSubmissions(undefined, req.session.userId!);
+      // Return as a map {quizId -> submission} for easy lookup by the frontend
+      const submissionMap: Record<string, any> = {};
+      for (const s of submissions) {
+        // Keep only the most recently completed submission per quiz
+        if (!submissionMap[s.quizId] || (s.status === "graded" && submissionMap[s.quizId].status !== "graded")) {
+          submissionMap[s.quizId] = {
+            id: s.id,
+            status: s.status,
+            score: s.score,
+            totalPoints: s.totalPoints,
+            percentage: s.percentage,
+            submittedAt: s.submittedAt,
+          };
+        }
+      }
+      res.json(submissionMap);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch submissions" });
+    }
+  });
+
   // Quizzes
   app.get("/api/quizzes", requireAuth, async (req, res) => {
     try {
@@ -1028,6 +1053,12 @@ Respond in JSON format:
   app.post("/api/quizzes", requireInstructor, async (req, res) => {
     try {
       const { questions: questionInputs, ...quizData } = req.body;
+      if (typeof quizData.startDate === "string") {
+        quizData.startDate = quizData.startDate.trim() ? new Date(quizData.startDate) : null;
+      }
+      if (typeof quizData.endDate === "string") {
+        quizData.endDate = quizData.endDate.trim() ? new Date(quizData.endDate) : null;
+      }
       const validatedQuiz = insertQuizSchema.parse(quizData);
 
       const quiz = await storage.createQuiz(validatedQuiz);
@@ -1078,10 +1109,47 @@ Respond in JSON format:
     try {
       const quiz = await storage.getQuiz(req.params.id as string);
       if (!quiz) return res.status(404).json({ error: "Quiz not found" });
-      const updated = await storage.updateQuiz(req.params.id as string, req.body);
+      
+      const updateData = { ...req.body };
+      if (typeof updateData.startDate === "string") {
+        updateData.startDate = updateData.startDate.trim() ? new Date(updateData.startDate) : null;
+      }
+      if (typeof updateData.endDate === "string") {
+        updateData.endDate = updateData.endDate.trim() ? new Date(updateData.endDate) : null;
+      }
+      
+      const updated = await storage.updateQuiz(req.params.id as string, updateData);
       res.json(updated);
     } catch (error) {
       res.status(500).json({ error: "Failed to update quiz" });
+    }
+  });
+
+  // DELETE quiz by id
+  app.delete("/api/quizzes/:id", requireInstructor, async (req, res) => {
+    try {
+      const quiz = await storage.getQuiz(req.params.id as string);
+      if (!quiz) return res.status(404).json({ error: "Quiz not found" });
+      
+      await storage.deleteQuiz(req.params.id as string);
+      res.json({ success: true, message: "Quiz deleted successfully" });
+    } catch (error) {
+      console.error("Delete quiz error:", error);
+      res.status(500).json({ error: "Failed to delete quiz" });
+    }
+  });
+
+  // PATCH close quiz by id
+  app.patch("/api/quizzes/:id/close", requireInstructor, async (req, res) => {
+    try {
+      const quiz = await storage.getQuiz(req.params.id as string);
+      if (!quiz) return res.status(404).json({ error: "Quiz not found" });
+      
+      const updated = await storage.updateQuiz(req.params.id as string, { status: "closed" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Close quiz error:", error);
+      res.status(500).json({ error: "Failed to close quiz" });
     }
   });
 
@@ -1148,6 +1216,14 @@ Respond in JSON format:
         return res.status(404).json({ error: "Quiz not found" });
       }
 
+      const now = new Date();
+      if (quiz.startDate && now < new Date(quiz.startDate)) {
+        return res.status(403).json({ error: `Quiz will open at ${new Date(quiz.startDate).toLocaleString()}` });
+      }
+      if (quiz.endDate && now > new Date(quiz.endDate)) {
+        return res.status(403).json({ error: "This quiz has ended." });
+      }
+
       // Enrollment check for students
       const user = await storage.getUser(req.session.userId!);
       if (user?.role === "student") {
@@ -1186,12 +1262,31 @@ Respond in JSON format:
         return res.status(404).json({ error: "Quiz not found" });
       }
 
+      const now = new Date();
+      if (quiz.startDate && now < new Date(quiz.startDate)) {
+        return res.status(403).json({ error: "Quiz has not started yet." });
+      }
+      if (quiz.endDate && now > new Date(quiz.endDate)) {
+        return res.status(403).json({ error: "Quiz has already ended." });
+      }
+
       // Enrollment check for students
       const user = await storage.getUser(req.session.userId!);
       if (user?.role === "student") {
         const enrollments = await storage.getEnrollments(quiz.courseId, user.id);
         if (enrollments.length === 0) {
           return res.status(403).json({ error: "You are not enrolled in the course for this quiz." });
+        }
+
+        // Check if student already completed this quiz — prevent re-attempt
+        const existingSubmissions = await storage.getQuizSubmissions(quizId, user.id);
+        const completed = existingSubmissions.find(s => s.status === "graded" || s.status === "submitted");
+        if (completed) {
+          return res.status(409).json({ 
+            error: "You have already completed this quiz.", 
+            submissionId: completed.id,
+            alreadyCompleted: true,
+          });
         }
       }
 
@@ -1217,6 +1312,16 @@ Respond in JSON format:
       if (!submission) {
         console.error(`[QUIZ_SUBMIT] Submission ${submissionId} not found`);
         return res.status(404).json({ error: "Submission not found" });
+      }
+
+      const quiz = await storage.getQuiz(submission.quizId);
+      const now = new Date();
+      if (quiz?.endDate && now > new Date(quiz.endDate)) {
+        // Allow a small grace period (e.g., 30 seconds) for submission latency
+        const gracePeriodMs = 30 * 1000;
+        if (now.getTime() > new Date(quiz.endDate).getTime() + gracePeriodMs) {
+          return res.status(403).json({ error: "Quiz time window has expired. Submission rejected." });
+        }
       }
 
       const quizQuestions = await storage.getQuizQuestions(submission.quizId);
@@ -1307,8 +1412,8 @@ Respond in JSON format:
       // Default status to "draft" if not provided (schema requires it but DB has a default)
       // Coerce dueDate string to Date object (drizzle-zod expects Date for timestamp columns)
       const rawBody = { status: "draft", ...req.body };
-      if (rawBody.dueDate && typeof rawBody.dueDate === "string") {
-        rawBody.dueDate = new Date(rawBody.dueDate);
+      if (typeof rawBody.dueDate === "string") {
+        rawBody.dueDate = rawBody.dueDate.trim() ? new Date(rawBody.dueDate) : null;
       }
       const data = insertAssignmentSchema.parse(rawBody);
       const assignment = await storage.createAssignment(data);
@@ -1325,8 +1430,8 @@ Respond in JSON format:
       const assignment = await storage.getAssignment(req.params.id as string);
       if (!assignment) return res.status(404).json({ error: "Assignment not found" });
       const updateData: any = { ...req.body };
-      if (updateData.dueDate && typeof updateData.dueDate === "string") {
-        updateData.dueDate = new Date(updateData.dueDate);
+      if (typeof updateData.dueDate === "string") {
+        updateData.dueDate = updateData.dueDate.trim() ? new Date(updateData.dueDate) : null;
       }
       const updated = await storage.updateAssignment(req.params.id as string, updateData);
       res.json(updated);
@@ -1605,15 +1710,69 @@ Return ONLY a JSON array of violations found (empty array if none):
   // Student specific endpoints
   app.get("/api/student/quizzes/upcoming", requireAuth, async (req, res) => {
     try {
-      const enrollments = await storage.getEnrollments(undefined, req.session.userId);
-      const quizzes = [];
+      const studentId = req.session.userId!;
+      const enrollments = await storage.getEnrollments(undefined, studentId);
+      const quizzesWithStatus = [];
       for (const e of enrollments) {
         const courseQuizzes = await storage.getQuizzes(e.courseId);
-        quizzes.push(...courseQuizzes.filter(q => q.status === "published"));
+        const published = courseQuizzes.filter(q => q.status === "published");
+        for (const quiz of published) {
+          const submissions = await storage.getQuizSubmissions(quiz.id, studentId);
+          const completed = submissions.find(s => s.status === "graded" || s.status === "submitted");
+          quizzesWithStatus.push({
+            ...quiz,
+            attempted: !!completed,
+            submissionId: completed?.id ?? null,
+            score: completed?.score ?? null,
+            totalPoints: completed?.totalPoints ?? null,
+            percentage: completed?.percentage ?? null,
+          });
+        }
       }
-      res.json(quizzes);
+      res.json(quizzesWithStatus);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch upcoming quizzes" });
+    }
+  });
+
+  // Student quiz results (completed quizzes with scores)
+  app.get("/api/student/quiz-results", requireAuth, async (req, res) => {
+    try {
+      const studentId = req.session.userId!;
+      const submissions = await storage.getQuizSubmissions(undefined, studentId);
+      const completedSubmissions = submissions.filter(
+        s => s.status === "graded" || s.status === "submitted"
+      );
+
+      const results = [];
+      for (const sub of completedSubmissions) {
+        const quiz = await storage.getQuiz(sub.quizId);
+        if (quiz) {
+          results.push({
+            submissionId: sub.id,
+            quizId: quiz.id,
+            quizTitle: quiz.title,
+            score: sub.score,
+            totalPoints: sub.totalPoints,
+            percentage: sub.percentage,
+            passingScore: quiz.passingScore ?? 60,
+            passed: (sub.percentage ?? 0) >= (quiz.passingScore ?? 60),
+            submittedAt: sub.submittedAt,
+            gradedAt: sub.gradedAt,
+          });
+        }
+      }
+
+      // Sort by most recent first
+      results.sort((a, b) => {
+        const dateA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+        const dateB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+        return dateB - dateA;
+      });
+
+      res.json(results);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch quiz results" });
     }
   });
 

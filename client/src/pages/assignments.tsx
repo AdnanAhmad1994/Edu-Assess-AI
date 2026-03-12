@@ -67,7 +67,8 @@ export default function AssignmentsPage() {
 
   const createAssignmentMutation = useMutation({
     mutationFn: async (data: AssignmentFormData) => {
-      return apiRequest("POST", "/api/assignments", data);
+      const res = await apiRequest("POST", "/api/assignments", data);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });

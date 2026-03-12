@@ -13,7 +13,6 @@ import {
   Plus,
   FileQuestion,
   Clock,
-  Users,
   Calendar,
   MoreVertical,
   Play,
@@ -23,6 +22,10 @@ import {
   Link,
   Copy,
   ExternalLink,
+  CheckCircle2,
+  Trophy,
+  Trash2,
+  XCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -58,9 +61,25 @@ export default function QuizzesPage() {
     queryKey: ["/api/quizzes"],
   });
 
+  const isInstructor = user?.role === "instructor" || user?.role === "admin";
+
+  // For students only: fetch their submission history to show completion status
+  const { data: mySubmissions } = useQuery<Record<string, {
+    id: string;
+    status: string;
+    score: number | null;
+    totalPoints: number | null;
+    percentage: number | null;
+    submittedAt: string | null;
+  }>>({ 
+    queryKey: ["/api/my-quiz-submissions"],
+    enabled: !isInstructor,
+  });
+
   const publishMutation = useMutation({
     mutationFn: async (quizId: string) => {
-      return apiRequest("PATCH", `/api/quizzes/${quizId}/publish`);
+      const res = await apiRequest("PATCH", `/api/quizzes/${quizId}/publish`);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/quizzes"] });
@@ -84,6 +103,32 @@ export default function QuizzesPage() {
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to generate public link", variant: "destructive" });
+    },
+  });
+  
+  const deleteMutation = useMutation({
+    mutationFn: async (quizId: string) => {
+      await apiRequest("DELETE", `/api/quizzes/${quizId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quizzes"] });
+      toast({ title: "Quiz deleted", description: "The quiz has been removed." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete quiz", variant: "destructive" });
+    },
+  });
+
+  const closeMutation = useMutation({
+    mutationFn: async (quizId: string) => {
+      await apiRequest("PATCH", `/api/quizzes/${quizId}/close`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quizzes"] });
+      toast({ title: "Quiz closed", description: "No more attempts can be made." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to close quiz", variant: "destructive" });
     },
   });
 
@@ -110,9 +155,10 @@ export default function QuizzesPage() {
     }
   };
 
-  const isInstructor = user?.role === "instructor" || user?.role === "admin";
 
   const filteredQuizzes = quizzes?.filter((quiz) => {
+    // Students only ever see published quizzes (backend also enforces this)
+    if (!isInstructor) return true;
     if (activeTab === "all") return true;
     return quiz.status === activeTab;
   });
@@ -125,6 +171,10 @@ export default function QuizzesPage() {
         return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400";
       case "closed":
         return "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400";
+      case "upcoming":
+        return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
+      case "expired":
+        return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
       default:
         return "";
     }
@@ -177,25 +227,170 @@ export default function QuizzesPage() {
         )}
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="all" data-testid="tab-all">All Quizzes</TabsTrigger>
-          <TabsTrigger value="draft" data-testid="tab-draft">Drafts</TabsTrigger>
-          <TabsTrigger value="published" data-testid="tab-published">Published</TabsTrigger>
-          <TabsTrigger value="closed" data-testid="tab-closed">Closed</TabsTrigger>
-        </TabsList>
+      {/* Tabs only shown to instructors — students always see published only */}
+      {isInstructor ? (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="all" data-testid="tab-all">All Quizzes</TabsTrigger>
+            <TabsTrigger value="draft" data-testid="tab-draft">Drafts</TabsTrigger>
+            <TabsTrigger value="published" data-testid="tab-published">Published</TabsTrigger>
+            <TabsTrigger value="closed" data-testid="tab-closed">Closed</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value={activeTab} className="mt-6">
+          <TabsContent value={activeTab} className="mt-6">
+            {filteredQuizzes && filteredQuizzes.length > 0 ? (
+              <div className="space-y-4">
+                {filteredQuizzes.map((quiz) => (
+                  <Card key={quiz.id} className="hover-elevate" data-testid={`quiz-card-${quiz.id}`}>
+                    <CardHeader className="flex flex-row items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-2">
+                          <Badge className={getStatusColor(quiz.status)}>
+                            {quiz.status}
+                          </Badge>
+                          {quiz.proctored && (
+                            <Badge variant="outline" className="gap-1">
+                              <Shield className="w-3 h-3" />
+                              Proctored
+                            </Badge>
+                          )}
+                        </div>
+                        <CardTitle className="text-xl">{quiz.title}</CardTitle>
+                        <CardDescription className="mt-1">
+                          {quiz.description || "No description"}
+                        </CardDescription>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" data-testid={`quiz-menu-${quiz.id}`}>
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {quiz.status === "draft" && (
+                            <DropdownMenuItem onClick={() => publishMutation.mutate(quiz.id)}>
+                              <Play className="w-4 h-4 mr-2" />
+                              Publish Quiz
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => handleOpenPublicLinkDialog(quiz)}>
+                            <Link className="w-4 h-4 mr-2" />
+                            {quiz.publicLinkEnabled ? "Manage Public Link" : "Generate Public Link"}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setLocation(`/quizzes/new?edit=${quiz.id}`)}
+                          >
+                            <FileQuestion className="w-4 h-4 mr-2" />
+                            View Submissions
+                          </DropdownMenuItem>
+                          {quiz.status !== "closed" && (
+                            <DropdownMenuItem 
+                              onClick={() => closeMutation.mutate(quiz.id)}
+                              className="text-amber-600 focus:text-amber-600"
+                            >
+                              <XCircle className="w-4 h-4 mr-2" />
+                              Close Quiz
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => {
+                              if (confirm("Are you sure you want to delete this quiz? This cannot be undone.")) {
+                                deleteMutation.mutate(quiz.id);
+                              }
+                            }}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete Quiz
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center gap-6 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4" />
+                          <span>{quiz.timeLimitMinutes ? `${quiz.timeLimitMinutes} min` : "No limit"}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <FileQuestion className="w-4 h-4" />
+                          <span>Questions</span>
+                        </div>
+                        {quiz.startDate && (
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4" />
+                            <span>{new Date(quiz.startDate).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                    <FileQuestion className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-medium">No quizzes found</h3>
+                  <p className="text-sm text-muted-foreground mt-1 text-center max-w-sm">
+                    Create your first quiz to start assessing your students.
+                  </p>
+                  <div className="flex gap-3 mt-4">
+                    <Button variant="outline" onClick={() => setLocation("/quizzes/new?mode=ai")}>
+                      <Brain className="w-4 h-4 mr-2" />
+                      Generate with AI
+                    </Button>
+                    <Button onClick={() => setLocation("/quizzes/new")}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Manually
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
+      ) : (
+        // Student view — no tabs, show completion status
+        <div className="mt-6 space-y-4">
           {filteredQuizzes && filteredQuizzes.length > 0 ? (
-            <div className="space-y-4">
-              {filteredQuizzes.map((quiz) => (
-                <Card key={quiz.id} className="hover-elevate" data-testid={`quiz-card-${quiz.id}`}>
+            filteredQuizzes.map((quiz) => {
+              const mySubmission = mySubmissions?.[quiz.id];
+              const isCompleted = mySubmission?.status === "graded" || mySubmission?.status === "submitted";
+              
+              const now = new Date();
+              const startDate = quiz.startDate ? new Date(quiz.startDate) : null;
+              const endDate = quiz.endDate ? new Date(quiz.endDate) : null;
+              
+              const isUpcoming = startDate && now < startDate;
+              const isExpired = endDate && now > endDate;
+              const isActive = (!startDate || now >= startDate) && (!endDate || now <= endDate);
+
+              return (
+                <Card key={quiz.id} className={`hover-elevate ${isUpcoming || isExpired ? "opacity-75" : ""}`} data-testid={`quiz-card-${quiz.id}`}>
                   <CardHeader className="flex flex-row items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-2">
-                        <Badge className={getStatusColor(quiz.status)}>
-                          {quiz.status}
-                        </Badge>
+                        {isCompleted ? (
+                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 gap-1">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Completed
+                          </Badge>
+                        ) : isUpcoming ? (
+                          <Badge className={getStatusColor("upcoming")}>
+                            Upcoming: Starts {startDate!.toLocaleString()}
+                          </Badge>
+                        ) : isExpired ? (
+                          <Badge className={getStatusColor("expired")}>
+                            Expired: Ended {endDate!.toLocaleString()}
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                            Available {endDate ? `until ${endDate.toLocaleString()}` : ""}
+                          </Badge>
+                        )}
                         {quiz.proctored && (
                           <Badge variant="outline" className="gap-1">
                             <Shield className="w-3 h-3" />
@@ -207,40 +402,36 @@ export default function QuizzesPage() {
                       <CardDescription className="mt-1">
                         {quiz.description || "No description"}
                       </CardDescription>
+                      {isCompleted && mySubmission.percentage !== null && (
+                        <div className="flex items-center gap-2 mt-2 text-sm">
+                          <Trophy className="w-4 h-4 text-yellow-500" />
+                          <span className="font-medium">
+                            Your Score: {mySubmission.score ?? 0}/{mySubmission.totalPoints ?? 0} ({mySubmission.percentage}%)
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    {isInstructor && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" data-testid={`quiz-menu-${quiz.id}`}>
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setLocation(`/quizzes/new?edit=${quiz.id}`)}>
-                            <Eye className="w-4 h-4 mr-2" />
-                            View / Edit Quiz
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {quiz.status === "draft" && (
-                            <DropdownMenuItem onClick={() => publishMutation.mutate(quiz.id)}>
-                              <Play className="w-4 h-4 mr-2" />
-                              Publish Quiz
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => handleOpenPublicLinkDialog(quiz)}>
-                            <Link className="w-4 h-4 mr-2" />
-                            {quiz.publicLinkEnabled ? "Manage Public Link" : "Generate Public Link"}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setLocation(`/quizzes/new?edit=${quiz.id}`)}>
-                            View Submissions
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                    {!isInstructor && quiz.status === "published" && (
-                      <Button onClick={() => setLocation(`/quiz/${quiz.id}/take`)} data-testid={`take-quiz-${quiz.id}`}>
+                    {isCompleted ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => setLocation(`/quiz/${quiz.id}/results/${mySubmission!.id}`)}
+                        data-testid={`view-results-${quiz.id}`}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View Results
+                      </Button>
+                    ) : isActive ? (
+                      <Button
+                        onClick={() => setLocation(`/quiz/${quiz.id}/take`)}
+                        data-testid={`take-quiz-${quiz.id}`}
+                      >
                         <Play className="w-4 h-4 mr-2" />
                         Start Quiz
+                      </Button>
+                    ) : (
+                      <Button disabled variant="secondary">
+                        <Clock className="w-4 h-4 mr-2" />
+                        {isUpcoming ? "Starts Soon" : "Expired"}
                       </Button>
                     )}
                   </CardHeader>
@@ -254,46 +445,36 @@ export default function QuizzesPage() {
                         <FileQuestion className="w-4 h-4" />
                         <span>Questions</span>
                       </div>
-                      {quiz.startDate && (
+                      {(startDate || endDate) && (
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4" />
-                          <span>{new Date(quiz.startDate).toLocaleDateString()}</span>
+                          <span>
+                            {startDate ? startDate.toLocaleString() : ""}
+                            {startDate && endDate ? " - " : ""}
+                            {endDate ? endDate.toLocaleString() : ""}
+                          </span>
                         </div>
                       )}
                     </div>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
+              );
+            })
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-16">
                 <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
                   <FileQuestion className="w-8 h-8 text-muted-foreground" />
                 </div>
-                <h3 className="text-lg font-medium">No quizzes found</h3>
+                <h3 className="text-lg font-medium">No quizzes available</h3>
                 <p className="text-sm text-muted-foreground mt-1 text-center max-w-sm">
-                  {isInstructor
-                    ? "Create your first quiz to start assessing your students."
-                    : "No quizzes are available for you at the moment."}
+                  No quizzes are available for you at the moment.
                 </p>
-                {isInstructor && (
-                  <div className="flex gap-3 mt-4">
-                    <Button variant="outline" onClick={() => setLocation("/quizzes/new?mode=ai")}>
-                      <Brain className="w-4 h-4 mr-2" />
-                      Generate with AI
-                    </Button>
-                    <Button onClick={() => setLocation("/quizzes/new")}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Manually
-                    </Button>
-                  </div>
-                )}
               </CardContent>
             </Card>
           )}
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
 
       <Dialog open={publicLinkDialogOpen} onOpenChange={setPublicLinkDialogOpen}>
         <DialogContent className="sm:max-w-md">
