@@ -533,10 +533,6 @@ export default function AssignmentsPage() {
                                <ClipboardList className="w-4 h-4 mr-2" />
                               View Submissions
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setLocation(`/assignments/${assignment.id}/grade`)}>
-                              <Brain className="w-4 h-4 mr-2" />
-                              AI Grade All
-                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-destructive focus:bg-destructive/10"
