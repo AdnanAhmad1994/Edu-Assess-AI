@@ -318,8 +318,17 @@ export default function QuizBuilderPage() {
       toast({ title: "Add questions", description: "Please add at least one question.", variant: "destructive" });
       return;
     }
+
+    const formattedData = { ...data };
+    if (formattedData.startDate) {
+      formattedData.startDate = new Date(formattedData.startDate).toISOString();
+    }
+    if (formattedData.endDate) {
+      formattedData.endDate = new Date(formattedData.endDate).toISOString();
+    }
+
     createQuizMutation.mutate({
-      ...data,
+      ...formattedData,
       questions,
       ...(quizAttachment ? {
         attachmentUrl: quizAttachment.url,
