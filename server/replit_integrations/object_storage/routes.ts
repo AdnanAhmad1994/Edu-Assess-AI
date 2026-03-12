@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import express, { Express } from "express";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 
 /**
@@ -63,17 +63,18 @@ export function registerObjectStorageRoutes(app: Express): void {
   });
 
   // Local upload handler for PUT requests
-  app.put("/api/uploads/direct-upload/:uuid", async (req, res) => {
+  app.put("/api/uploads/direct-upload/:uuid", express.raw({ type: '*/*', limit: '100mb' }), async (req, res) => {
     try {
       const { uuid } = req.params;
-      const chunks: any[] = [];
+      const buffer = req.body;
       
-      req.on('data', (chunk) => chunks.push(chunk));
-      req.on('end', async () => {
-        const buffer = Buffer.concat(chunks);
-        await objectStorageService.saveLocalObject(uuid, buffer);
-        res.status(200).send({ message: "File uploaded successfully" });
-      });
+      if (!Buffer.isBuffer(buffer)) {
+        console.error("Local upload error: Request body is not a buffer");
+        return res.status(400).json({ error: "Invalid file content" });
+      }
+
+      await objectStorageService.saveLocalObject(uuid, buffer);
+      res.status(200).json({ message: "File uploaded successfully" });
     } catch (error) {
       console.error("Local upload error:", error);
       res.status(500).json({ error: "Failed to upload file locally" });

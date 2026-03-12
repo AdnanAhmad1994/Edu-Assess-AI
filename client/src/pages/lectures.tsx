@@ -180,8 +180,13 @@ export default function LecturesPage() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 mt-4">
+                {!courses || courses.length === 0 ? (
+                  <div className="p-4 border border-yellow-200 bg-yellow-50 rounded-lg text-yellow-800 text-sm">
+                    You need to create a course first before uploading lectures.
+                  </div>
+                ) : null}
                 <div>
-                  <label className="text-sm font-medium">Course</label>
+                  <label className="text-sm font-medium">Course <span className="text-destructive">*</span></label>
                   <Select value={uploadCourse} onValueChange={setUploadCourse}>
                     <SelectTrigger data-testid="select-upload-course">
                       <SelectValue placeholder="Select a course" />
@@ -204,15 +209,20 @@ export default function LecturesPage() {
                     data-testid="input-lecture-title"
                   />
                 </div>
-                <ObjectUploader
-                  maxFileSize={52428800}
-                  onGetUploadParameters={getUploadParameters}
-                  onComplete={handleUploadComplete}
-                  buttonClassName="w-full"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Select File
-                </ObjectUploader>
+                <div className={!uploadCourse ? "opacity-50 pointer-events-none" : ""}>
+                  <ObjectUploader
+                    maxFileSize={52428800}
+                    onGetUploadParameters={getUploadParameters}
+                    onComplete={handleUploadComplete}
+                    buttonClassName="w-full"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {!uploadCourse ? "Select Course First" : "Select File"}
+                  </ObjectUploader>
+                  {!uploadCourse && (
+                    <p className="text-[10px] text-destructive mt-1 text-center">Please select a course to enable file upload</p>
+                  )}
+                </div>
               </div>
             </DialogContent>
           </Dialog>
@@ -265,8 +275,19 @@ export default function LecturesPage() {
                     </div>
                   </div>
                 </div>
-                {isInstructor && (
-                  <DropdownMenu>
+                <div className="flex gap-1 shrink-0">
+                    {lecture.fileUrl && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => window.open(lecture.fileUrl?.startsWith('/objects/') ? `/api${lecture.fileUrl}` : `/api/objects/${lecture.fileUrl}`, "_blank")}
+                        title="Download"
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {isInstructor && (
+                      <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="shrink-0" data-testid={`lecture-menu-${lecture.id}`}>
                         <MoreVertical className="w-4 h-4" />
@@ -298,6 +319,7 @@ export default function LecturesPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
+                </div>
               </CardHeader>
               <CardContent>
                 <CardDescription className="line-clamp-2 mb-3">

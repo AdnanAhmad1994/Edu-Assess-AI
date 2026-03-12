@@ -740,7 +740,7 @@ function StudentDashboard() {
                         size="sm"
                         variant="ghost"
                         className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => window.open(`/api/objects/${lecture.fileUrl}`, "_blank")}
+                        onClick={() => window.open(lecture.fileUrl?.startsWith('/objects/') ? `/api${lecture.fileUrl}` : `/api/objects/${lecture.fileUrl}`, "_blank")}
                       >
                         <Download className="w-4 h-4" />
                       </Button>

@@ -45,6 +45,7 @@ const instructorMenuItems = [
 const studentMenuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "My Courses", url: "/courses", icon: BookOpen },
+  { title: "Lecture Notes", url: "/lectures", icon: FolderOpen },
   { title: "Quizzes", url: "/quizzes", icon: FileQuestion },
   { title: "Assignments", url: "/assignments", icon: ClipboardList },
   { title: "My Profile", url: "/my-profile", icon: UserCircle },

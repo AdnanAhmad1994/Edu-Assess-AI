@@ -240,6 +240,10 @@ export class ObjectStorageService {
     rawPath: string,
   ): string {
     if (!rawPath.startsWith("https://storage.googleapis.com/")) {
+      if (rawPath.startsWith("/api/uploads/direct-upload/")) {
+        const objectId = rawPath.split("/").pop();
+        return `/objects/${objectId}`;
+      }
       return rawPath;
     }
   
