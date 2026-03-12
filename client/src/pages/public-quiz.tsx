@@ -146,34 +146,65 @@ export default function PublicQuizPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter your username"
-                  required
-                  disabled={isLoggingIn}
-                />
+            {user ? (
+              <div className="space-y-4 text-center">
+                <p className="text-sm">You are currently logged in as <strong>{user.username}</strong>.</p>
+                <div className="flex flex-col gap-2 mt-4">
+                  <Button
+                    onClick={() => {
+                      if (canAttempt) {
+                        setLocation(`/quiz/${quiz.id}/take`);
+                      } else {
+                        setStep("quiz");
+                      }
+                    }}
+                    className="w-full"
+                  >
+                    Continue to Quiz
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      fetch("/api/auth/logout", { method: "POST" }).then(() => {
+                        window.location.reload();
+                      });
+                    }}
+                    className="w-full"
+                  >
+                    Switch Account
+                  </Button>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  required
-                  disabled={isLoggingIn}
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={isLoggingIn}>
-                {isLoggingIn ? "Logging in..." : "Log In & Continue"}
-              </Button>
-            </form>
+            ) : (
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter your username"
+                    required
+                    disabled={isLoggingIn}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    required
+                    disabled={isLoggingIn}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={isLoggingIn}>
+                  {isLoggingIn ? "Logging in..." : "Log In & Continue"}
+                </Button>
+              </form>
+            )}
           </CardContent>
         </Card>
       </div>
