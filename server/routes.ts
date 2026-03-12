@@ -182,13 +182,13 @@ export async function registerRoutes(
       await storage.createOtpVerification(user.id, otp, "registration", expiresAt);
 
       // Send Email
-      const emailSent = await sendOTPVerificationEmail(user.email, otp, user.name);
+      const { success: emailSent, error: emailError } = await sendOTPVerificationEmail(user.email, otp, user.name);
       
       if (!emailSent) {
         return res.status(201).json({ 
           ...sanitizeUser(user), 
           requiresVerification: true,
-          warning: "User created, but failed to send verification email. Please try resending the code from the verification page."
+          warning: `User created, but failed to send verification email: ${emailError}. Please try resending the code from the verification page.`
         });
       }
 
@@ -279,9 +279,9 @@ export async function registerRoutes(
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
       await storage.createOtpVerification(user.id, otp, "registration", expiresAt);
 
-      const emailSent = await sendOTPVerificationEmail(user.email, otp, user.name);
+      const { success: emailSent, error: emailError } = await sendOTPVerificationEmail(user.email, otp, user.name);
       if (!emailSent) {
-        return res.status(500).json({ error: "Failed to send OTP email. Please check your email configuration." });
+        return res.status(500).json({ error: `Failed to send OTP email: ${emailError}` });
       }
       res.json({ message: "A new OTP has been sent" });
     } catch (error) {
@@ -315,9 +315,9 @@ export async function registerRoutes(
           const otp = Math.floor(100000 + Math.random() * 900000).toString();
           const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
           await storage.createOtpVerification(user.id, otp, "password_reset", expiresAt);
-          const emailSent = await sendPasswordResetOTPEmail(user.email, otp, user.name);
+          const { success: emailSent, error: emailError } = await sendPasswordResetOTPEmail(user.email, otp, user.name);
           if (!emailSent) {
-            return res.status(500).json({ error: "Failed to send password reset email. Please try again later." });
+            return res.status(500).json({ error: `Failed to send password reset email: ${emailError}` });
           }
         } catch (emailErr) {
           console.error("Failed to send password reset email:", emailErr);

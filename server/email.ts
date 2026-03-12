@@ -1,24 +1,30 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-let resendClient: Resend | null = null;
+let transporter: nodemailer.Transporter | null = null;
 
-function getResendClient(): Resend {
-  if (!resendClient) {
-    if (!process.env.RESEND_API_KEY) {
-      throw new Error("RESEND_API_KEY is not configured. Please add it in Settings.");
+function getTransporter(): nodemailer.Transporter {
+  if (!transporter) {
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      throw new Error("SMTP_USER and SMTP_PASS are not configured in .env");
     }
-    resendClient = new Resend(process.env.RESEND_API_KEY);
+    transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
   }
-  return resendClient;
+  return transporter;
 }
 
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "EduAssess AI <onboarding@resend.dev>";
+const FROM_NAME = "EduAssess AI";
 
-export async function sendPasswordResetOTPEmail(to: string, otp: string, name: string) {
+export async function sendPasswordResetOTPEmail(to: string, otp: string, name: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const { data, error } = await getResendClient().emails.send({
-      from: FROM_EMAIL,
-      to: [to],
+    const info = await getTransporter().sendMail({
+      from: `"${FROM_NAME}" <${process.env.SMTP_USER}>`,
+      to,
       subject: "Reset Your Password - EduAssess AI",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -44,24 +50,19 @@ export async function sendPasswordResetOTPEmail(to: string, otp: string, name: s
         </div>
       `,
     });
-
-    if (error) {
-      console.error("Failed to send password reset email. Resend Error:", JSON.stringify(error, null, 2));
-      return false;
-    }
-    console.log(`Successfully sent password reset OTP to ${to}. Email ID: ${data?.id}`);
-    return true;
-  } catch (err) {
+    console.log(`Successfully sent password reset OTP to ${to}. Message ID: ${info.messageId}`);
+    return { success: true };
+  } catch (err: any) {
     console.error("Critical error in sendPasswordResetOTPEmail:", err);
-    return false;
+    return { success: false, error: err.message };
   }
 }
 
-export async function sendUsernameReminderEmail(to: string, username: string, name: string) {
+export async function sendUsernameReminderEmail(to: string, username: string, name: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const { data, error } = await getResendClient().emails.send({
-      from: FROM_EMAIL,
-      to: [to],
+    const info = await getTransporter().sendMail({
+      from: `"${FROM_NAME}" <${process.env.SMTP_USER}>`,
+      to,
       subject: "Your Username - EduAssess AI",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -86,23 +87,19 @@ export async function sendUsernameReminderEmail(to: string, username: string, na
         </div>
       `,
     });
-
-    if (error) {
-      console.error("Failed to send username reminder email:", error);
-      return false;
-    }
-    return true;
-  } catch (err) {
+    console.log(`Successfully sent username reminder to ${to}. Message ID: ${info.messageId}`);
+    return { success: true };
+  } catch (err: any) {
     console.error("Error sending username reminder email:", err);
-    return false;
+    return { success: false, error: err.message };
   }
 }
 
-export async function sendOTPVerificationEmail(to: string, otp: string, name: string) {
+export async function sendOTPVerificationEmail(to: string, otp: string, name: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const { data, error } = await getResendClient().emails.send({
-      from: FROM_EMAIL,
-      to: [to],
+    const info = await getTransporter().sendMail({
+      from: `"${FROM_NAME}" <${process.env.SMTP_USER}>`,
+      to,
       subject: "Verify your email - EduAssess AI",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -128,15 +125,10 @@ export async function sendOTPVerificationEmail(to: string, otp: string, name: st
         </div>
       `,
     });
-
-    if (error) {
-      console.error("Failed to send verification email. Resend Error:", JSON.stringify(error, null, 2));
-      return false;
-    }
-    console.log(`Successfully sent verification OTP to ${to}. Email ID: ${data?.id}`);
-    return true;
-  } catch (err) {
+    console.log(`Successfully sent verification OTP to ${to}. Message ID: ${info.messageId}`);
+    return { success: true };
+  } catch (err: any) {
     console.error("Critical error in sendOTPVerificationEmail:", err);
-    return false;
+    return { success: false, error: err.message };
   }
 }
