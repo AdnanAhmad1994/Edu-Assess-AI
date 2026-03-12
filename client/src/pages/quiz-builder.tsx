@@ -428,26 +428,6 @@ export default function QuizBuilderPage() {
                     </FormItem>
                   )}
                 />
-
-                <FormField
-                  control={form.control}
-                  name="passingScore"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Total Marks</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min={0}
-                          data-testid="input-total-marks"
-                          {...field}
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
