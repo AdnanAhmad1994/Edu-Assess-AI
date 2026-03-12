@@ -1401,6 +1401,23 @@ Respond in JSON format:
   });
 
   // Assignments
+  app.get("/api/assignments/my-submissions", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(401).json({ error: "User not found" });
+
+      if (user.role !== "student") {
+        return res.status(403).json({ error: "Only students can view their submissions here" });
+      }
+
+      const submissions = await storage.getAssignmentSubmissions(undefined, user.id);
+      res.json(submissions);
+    } catch (error) {
+      console.error("Fetch my submissions error:", error);
+      res.status(500).json({ error: "Failed to fetch your assignment submissions" });
+    }
+  });
+
   app.get("/api/assignments", requireAuth, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);

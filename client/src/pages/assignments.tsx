@@ -28,6 +28,8 @@ import {
   Clock,
   FileText,
   AlertCircle,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -36,6 +38,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
 import type { Assignment, Course } from "@shared/schema";
 
 const assignmentSchema = z.object({
@@ -45,6 +58,8 @@ const assignmentSchema = z.object({
   courseId: z.string().min(1, "Please select a course"),
   maxScore: z.number().min(1).default(100),
   dueDate: z.string().optional(),
+  allowLateSubmission: z.boolean().default(false),
+  latePenaltyPercent: z.number().min(0).max(100).default(10),
 });
 
 type AssignmentFormData = z.infer<typeof assignmentSchema>;
@@ -55,10 +70,18 @@ export default function AssignmentsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(searchParams.get("action") === "create");
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Assignment | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Assignment | null>(null);
   const [activeTab, setActiveTab] = useState("all");
 
   const { data: assignments, isLoading } = useQuery<Assignment[]>({
     queryKey: ["/api/assignments"],
+  });
+
+  const { data: mySubmissions } = useQuery<any[]>({
+    queryKey: ["/api/assignments/my-submissions"],
+    enabled: !isInstructor,
   });
 
   const { data: courses } = useQuery<Course[]>({
@@ -73,10 +96,42 @@ export default function AssignmentsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
       setIsCreateOpen(false);
+      form.reset();
       toast({ title: "Assignment created", description: "Your assignment has been created successfully." });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to create assignment.", variant: "destructive" });
+    },
+  });
+
+  const updateAssignmentMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<AssignmentFormData & { status: string }> }) => {
+      const res = await apiRequest("PUT", `/api/assignments/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
+      setIsEditOpen(false);
+      setEditTarget(null);
+      form.reset();
+      toast({ title: "Assignment updated", description: "Your assignment has been updated successfully." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update assignment.", variant: "destructive" });
+    },
+  });
+
+  const deleteAssignmentMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/assignments/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
+      setDeleteTarget(null);
+      toast({ title: "Assignment deleted", description: "Your assignment has been deleted successfully." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete assignment.", variant: "destructive" });
     },
   });
 
@@ -89,11 +144,47 @@ export default function AssignmentsPage() {
       courseId: "",
       maxScore: 100,
       dueDate: "",
+      allowLateSubmission: false,
+      latePenaltyPercent: 10,
     },
   });
 
   const onSubmit = (data: AssignmentFormData) => {
-    createAssignmentMutation.mutate(data);
+    if (editTarget) {
+      updateAssignmentMutation.mutate({ id: editTarget.id, data });
+    } else {
+      createAssignmentMutation.mutate(data);
+    }
+  };
+
+  const openEditDialog = (assignment: Assignment) => {
+    setEditTarget(assignment);
+    form.reset({
+      title: assignment.title,
+      description: assignment.description || "",
+      instructions: assignment.instructions || "",
+      courseId: assignment.courseId,
+      maxScore: assignment.maxScore,
+      dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().slice(0, 16) : "",
+      allowLateSubmission: assignment.allowLateSubmission ?? false,
+      latePenaltyPercent: assignment.latePenaltyPercent ?? 10,
+    });
+    setIsEditOpen(true);
+  };
+
+  const openCreateDialog = () => {
+    setEditTarget(null);
+    form.reset({
+      title: "",
+      description: "",
+      instructions: "",
+      courseId: "",
+      maxScore: 100,
+      dueDate: "",
+      allowLateSubmission: false,
+      latePenaltyPercent: 10,
+    });
+    setIsCreateOpen(true);
   };
 
   const isInstructor = user?.role === "instructor" || user?.role === "admin";
@@ -163,60 +254,69 @@ export default function AssignmentsPage() {
           </p>
         </div>
         {isInstructor && (
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-create-assignment">
+          <>
+          <Dialog open={isCreateOpen || isEditOpen} onOpenChange={(open) => {
+            if (!open) {
+              setIsCreateOpen(false);
+              setIsEditOpen(false);
+              setEditTarget(null);
+            }
+          }}>
+            {!isEditOpen && (
+              <Button data-testid="button-create-assignment" onClick={openCreateDialog}>
                 <Plus className="w-4 h-4 mr-2" />
                 New Assignment
               </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            )}
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Create New Assignment</DialogTitle>
+                <DialogTitle>{editTarget ? "Edit Assignment" : "Create New Assignment"}</DialogTitle>
                 <DialogDescription>
-                  Create an assignment for students to submit their work.
+                  {editTarget ? "Update the assignment details below." : "Create an assignment for students to submit their work."}
                 </DialogDescription>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="title"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Assignment Title</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Research Paper - Topic Analysis" data-testid="input-assignment-title" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="courseId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Course</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="title"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Assignment Title</FormLabel>
                           <FormControl>
-                            <SelectTrigger data-testid="select-assignment-course">
-                              <SelectValue placeholder="Select a course" />
-                            </SelectTrigger>
+                            <Input placeholder="Research Paper - Topic Analysis" data-testid="input-assignment-title" {...field} />
                           </FormControl>
-                          <SelectContent>
-                            {courses?.map((course) => (
-                              <SelectItem key={course.id} value={course.id}>
-                                {course.code} - {course.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="courseId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Course</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-assignment-course">
+                                <SelectValue placeholder="Select a course" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {courses?.map((course) => (
+                                <SelectItem key={course.id} value={course.id}>
+                                  {course.code} - {course.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
                   <FormField
                     control={form.control}
@@ -226,6 +326,20 @@ export default function AssignmentsPage() {
                         <FormLabel>Description</FormLabel>
                         <FormControl>
                           <Textarea placeholder="A brief description of the assignment..." data-testid="input-assignment-description" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="instructions"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Detailed Instructions</FormLabel>
+                        <FormControl>
+                          <Textarea className="min-h-[100px]" placeholder="Detailed step-by-step instructions for the students..." data-testid="input-assignment-instructions" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -268,34 +382,109 @@ export default function AssignmentsPage() {
                     />
                   </div>
 
-                  <div className="flex justify-end gap-3">
-                    <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
+                  <div className="grid grid-cols-2 gap-4 items-center bg-muted/30 p-4 rounded-lg">
+                    <FormField
+                      control={form.control}
+                      name="allowLateSubmission"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
+                          <div className="space-y-0.5">
+                            <FormLabel>Allow Late Submission</FormLabel>
+                            <CardDescription>
+                              Can students submit after due date?
+                            </CardDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    {form.watch("allowLateSubmission") && (
+                      <FormField
+                        control={form.control}
+                        name="latePenaltyPercent"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Late Penalty (%)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                data-testid="input-late-penalty"
+                                {...field}
+                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4 border-t">
+                    <Button type="button" variant="outline" onClick={() => {
+                      setIsCreateOpen(false);
+                      setIsEditOpen(false);
+                    }}>
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={createAssignmentMutation.isPending} data-testid="button-submit-assignment">
-                      {createAssignmentMutation.isPending ? "Creating..." : "Create Assignment"}
+                    <Button type="submit" disabled={createAssignmentMutation.isPending || updateAssignmentMutation.isPending} data-testid="button-submit-assignment">
+                      {createAssignmentMutation.isPending || updateAssignmentMutation.isPending ? "Saving..." : editTarget ? "Update Assignment" : "Create Assignment"}
                     </Button>
                   </div>
                 </form>
               </Form>
             </DialogContent>
           </Dialog>
+
+          <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete the assignment "{deleteTarget?.title}" and remove all associated submissions and data.
+                  This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => deleteTarget && deleteAssignmentMutation.mutate(deleteTarget.id)}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleteAssignmentMutation.isPending ? "Deleting..." : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          </>
         )}
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="all" data-testid="tab-all-assignments">All</TabsTrigger>
-          <TabsTrigger value="draft" data-testid="tab-draft-assignments">Drafts</TabsTrigger>
-          <TabsTrigger value="published" data-testid="tab-published-assignments">Published</TabsTrigger>
-          <TabsTrigger value="closed" data-testid="tab-closed-assignments">Closed</TabsTrigger>
-        </TabsList>
+      {isInstructor && (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="all" data-testid="tab-all-assignments">All</TabsTrigger>
+            <TabsTrigger value="draft" data-testid="tab-draft-assignments">Drafts</TabsTrigger>
+            <TabsTrigger value="published" data-testid="tab-published-assignments">Published</TabsTrigger>
+            <TabsTrigger value="closed" data-testid="tab-closed-assignments">Closed</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
 
-        <TabsContent value={activeTab} className="mt-6">
-          {filteredAssignments && filteredAssignments.length > 0 ? (
-            <div className="space-y-4">
-              {filteredAssignments.map((assignment) => {
-                const dueStatus = getDueDateStatus(assignment.dueDate);
+      <div className={isInstructor ? "mt-6" : ""}>
+        {filteredAssignments && filteredAssignments.length > 0 ? (
+          <div className="space-y-4">
+            {filteredAssignments.map((assignment) => {
+              const dueStatus = getDueDateStatus(assignment.dueDate);
+              const hasSubmitted = mySubmissions?.some(s => s.assignmentId === assignment.id);
 
                 return (
                   <Card key={assignment.id} className="hover-elevate" data-testid={`assignment-card-${assignment.id}`}>
@@ -320,28 +509,55 @@ export default function AssignmentsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setLocation(`/assignments/${assignment.id}`)}>
-                              <Eye className="w-4 h-4 mr-2" />
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setLocation(`/assignments/${assignment.id}/edit`)}>
+                            <DropdownMenuItem onClick={() => openEditDialog(assignment)}>
+                              <Pencil className="w-4 h-4 mr-2" />
                               Edit Assignment
                             </DropdownMenuItem>
+                            {assignment.status === "draft" && (
+                              <DropdownMenuItem
+                                onClick={() => updateAssignmentMutation.mutate({ id: assignment.id, data: { status: "published" } })}
+                              >
+                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                                Publish Assignment
+                              </DropdownMenuItem>
+                            )}
+                            {assignment.status === "published" && (
+                              <DropdownMenuItem
+                                onClick={() => updateAssignmentMutation.mutate({ id: assignment.id, data: { status: "closed" } })}
+                              >
+                                <AlertCircle className="w-4 h-4 mr-2" />
+                                Close Assignment
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => setLocation(`/assignments/${assignment.id}/submissions`)}>
+                               <ClipboardList className="w-4 h-4 mr-2" />
                               View Submissions
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setLocation(`/assignments/${assignment.id}/grade`)}>
                               <Brain className="w-4 h-4 mr-2" />
                               AI Grade All
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:bg-destructive/10"
+                              onClick={() => setDeleteTarget(assignment)}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete Assignment
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
                       {!isInstructor && assignment.status === "published" && (
-                        <Button onClick={() => setLocation(`/assignment/${assignment.id}/submit`)} data-testid={`submit-assignment-${assignment.id}`}>
+                        <Button
+                          onClick={() => setLocation(`/assignment/${assignment.id}/submit`)}
+                          data-testid={`submit-assignment-${assignment.id}`}
+                          disabled={hasSubmitted}
+                          variant={hasSubmitted ? "secondary" : "default"}
+                        >
                           <FileText className="w-4 h-4 mr-2" />
-                          Submit
+                          {hasSubmitted ? "Submitted" : "Submit"}
                         </Button>
                       )}
                     </CardHeader>
@@ -383,9 +599,8 @@ export default function AssignmentsPage() {
                 )}
               </CardContent>
             </Card>
-          )}
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
     </div>
   );
 }
