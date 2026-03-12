@@ -328,7 +328,7 @@ export default function CoursesPage() {
       {courses && courses.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {courses.map((course) => (
-            <Card key={course.id} className="hover-elevate cursor-pointer group" data-testid={`course-card-${course.id}`}>
+            <Card key={course.id} className="hover-elevate group" data-testid={`course-card-${course.id}`}>
               <CardHeader className="flex flex-row items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -370,7 +370,7 @@ export default function CoursesPage() {
                   </DropdownMenu>
                 )}
               </CardHeader>
-              <CardContent onClick={() => setLocation(`/courses/${course.id}`)}>
+              <CardContent>
                 <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
                   {course.description || "No description provided"}
                 </p>
