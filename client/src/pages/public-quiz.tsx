@@ -37,20 +37,6 @@ export default function PublicQuizPage() {
     enabled: !!token,
   });
 
-  // When quiz data loads and user is already logged in...
-  useEffect(() => {
-    if (!data || !user) return;
-    
-    if (data.canAttempt) {
-      // If attempt mode, redirect to the real quiz-taking interface which 
-      // handles course enrollment validation and official submissions.
-      setLocation(`/quiz/${data.quiz.id}/take`);
-    } else {
-      // If view mode, stay here and let them view it
-      setStep("quiz");
-    }
-  }, [data, user, setLocation]);
-
 
 
 
@@ -76,8 +62,13 @@ export default function PublicQuizPage() {
         description: "Invalid username or password.",
         variant: "destructive"
       });
+    } else {
+      if (canAttempt) {
+        setLocation(`/quiz/${quiz.id}/take`);
+      } else {
+        setStep("quiz");
+      }
     }
-    // If successful, the useEffect above will trigger and redirect/update step.
   };
 
 
