@@ -1400,6 +1400,63 @@ Respond in JSON format:
     }
   });
 
+  app.get("/api/quizzes/:id/submissions", requireInstructor, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const quiz = await storage.getQuiz(id);
+      if (!quiz) return res.status(404).json({ error: "Quiz not found" });
+
+      const submissions = await storage.getQuizSubmissions(id);
+      const publicSubmissions = await storage.getPublicQuizSubmissions(id);
+      
+      const enrichedSubmissions = [];
+      
+      for (const s of submissions) {
+        let studentName = "Unknown Student";
+        const student = await storage.getUser(s.studentId);
+        if (student) studentName = student.name;
+        
+        enrichedSubmissions.push({
+          id: s.id,
+          quizId: s.quizId,
+          studentId: s.studentId,
+          studentName,
+          score: s.score,
+          totalPoints: s.totalPoints,
+          percentage: s.percentage,
+          status: s.status,
+          submittedAt: s.submittedAt,
+          gradedAt: s.gradedAt,
+          isPublic: false
+        });
+      }
+
+      for (const s of publicSubmissions) {
+        const idData = s.identificationData as any;
+        const studentName = idData?.name || idData?.email || "Anonymous";
+        
+        enrichedSubmissions.push({
+          id: s.id,
+          quizId: s.quizId,
+          studentId: null,
+          studentName,
+          score: s.score,
+          totalPoints: s.totalPoints,
+          percentage: s.percentage,
+          status: s.status,
+          submittedAt: s.submittedAt,
+          gradedAt: null,
+          isPublic: true
+        });
+      }
+
+      res.json(enrichedSubmissions);
+    } catch (error) {
+      console.error("Fetch quiz submissions error:", error);
+      res.status(500).json({ error: "Failed to fetch quiz submissions" });
+    }
+  });
+
   // Assignments
   app.get("/api/assignments/my-submissions", requireAuth, async (req, res) => {
     try {

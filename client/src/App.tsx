@@ -19,6 +19,7 @@ import QuizzesPage from "@/pages/quizzes";
 import QuizBuilderPage from "@/pages/quiz-builder";
 import QuizTakePage from "@/pages/quiz-take";
 import QuizResultsPage from "@/pages/quiz-results";
+import QuizSubmissionsPage from "@/pages/quiz-submissions";
 import AssignmentsPage from "@/pages/assignments";
 import AssignmentSubmitPage from "@/pages/assignment-submit";
 import AssignmentSubmissionsPage from "@/pages/assignment-submissions";
@@ -147,6 +148,11 @@ function Router() {
       </Route>
       <Route path="/quiz/:id/take">
         <ProtectedRoute component={QuizTakePage} />
+      </Route>
+      <Route path="/quizzes/:id/submissions">
+        <AuthenticatedLayout>
+          <ProtectedRoute component={QuizSubmissionsPage} />
+        </AuthenticatedLayout>
       </Route>
       <Route path="/quiz/:id/results/:submissionId">
         <ProtectedRoute component={QuizResultsPage} />

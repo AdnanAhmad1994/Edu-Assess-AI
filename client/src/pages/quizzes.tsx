@@ -277,7 +277,7 @@ export default function QuizzesPage() {
                             <Link className="w-4 h-4 mr-2" />
                             {quiz.publicLinkEnabled ? "Manage Public Link" : "Generate Public Link"}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setLocation(`/quizzes/new?edit=${quiz.id}`)}
+                          <DropdownMenuItem onClick={() => setLocation(`/quizzes/${quiz.id}/submissions`)}
                           >
                             <FileQuestion className="w-4 h-4 mr-2" />
                             View Submissions
