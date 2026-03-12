@@ -1049,9 +1049,21 @@ export async function registerRoutes(
   // Lectures
   app.get("/api/lectures", requireAuth, async (req, res) => {
     try {
+      const user = await storage.getUser(req.session.userId!);
       const courseId = req.query.courseId as string | undefined;
-      const lectures = await storage.getLectures(courseId);
-      res.json(lectures);
+      
+      let lecturesList;
+      if (user?.role === "student") {
+        lecturesList = await storage.getLecturesForStudent(user.id);
+        // If courseId is provided, further filter the student's lectures
+        if (courseId) {
+          lecturesList = lecturesList.filter(l => l.courseId === courseId);
+        }
+      } else {
+        lecturesList = await storage.getLectures(courseId);
+      }
+      
+      res.json(lecturesList);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch lectures" });
     }

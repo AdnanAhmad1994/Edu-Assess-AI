@@ -19,7 +19,7 @@ import {
   proctoringViolations, publicQuizSubmissions, otpVerifications, passwordResetTokens, chatCommands,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 
 export interface IStorage {
@@ -42,6 +42,7 @@ export interface IStorage {
 
   // Lectures
   getLectures(courseId?: string): Promise<Lecture[]>;
+  getLecturesForStudent(studentId: string): Promise<Lecture[]>;
   getLecture(id: string): Promise<Lecture | undefined>;
   createLecture(lecture: InsertLecture): Promise<Lecture>;
   updateLecture(id: string, lecture: Partial<InsertLecture>): Promise<Lecture | undefined>;
@@ -225,6 +226,7 @@ export class MemStorage implements IStorage {
       groqApiModel: null,
       activeAiProvider: "groq",
       patternHash: null,
+      isVerified: true,
       createdAt: new Date()
     });
 
@@ -244,6 +246,7 @@ export class MemStorage implements IStorage {
         groqApiModel: null,
         activeAiProvider: "groq",
         patternHash: null,
+        isVerified: true,
         createdAt: new Date()
       });
     });
@@ -349,6 +352,7 @@ export class MemStorage implements IStorage {
       groqApiModel: (insertUser as any).groqApiModel ?? null,
       activeAiProvider: insertUser.activeAiProvider ?? "groq",
       patternHash: insertUser.patternHash ?? null,
+      isVerified: insertUser.isVerified ?? true,
       createdAt: new Date(),
     };
     this.users.set(id, user);
@@ -411,11 +415,16 @@ export class MemStorage implements IStorage {
 
   // Lectures
   async getLectures(courseId?: string): Promise<Lecture[]> {
-    const lectures = Array.from(this.lectures.values());
     if (courseId) {
-      return lectures.filter(l => l.courseId === courseId);
+      return Array.from(this.lectures.values()).filter(l => l.courseId === courseId);
     }
-    return lectures;
+    return Array.from(this.lectures.values());
+  }
+
+  async getLecturesForStudent(studentId: string): Promise<Lecture[]> {
+    const studentEnrollments = Array.from(this.enrollments.values()).filter(e => e.studentId === studentId);
+    const courseIds = studentEnrollments.map(e => e.courseId);
+    return Array.from(this.lectures.values()).filter(l => courseIds.includes(l.courseId));
   }
 
   async getLecture(id: string): Promise<Lecture | undefined> {
@@ -1440,8 +1449,21 @@ export class DatabaseStorage implements IStorage {
 
   // Lectures
   async getLectures(courseId?: string) {
-    const rows = await db!.select().from(lectures);
-    return courseId ? rows.filter(l => l.courseId === courseId) : rows;
+    if (courseId) {
+      return await db!.select().from(lectures).where(eq(lectures.courseId, courseId));
+    }
+    return await db!.select().from(lectures);
+  }
+
+  async getLecturesForStudent(studentId: string) {
+    const studentEnrollments = await db!.select().from(enrollments).where(eq(enrollments.studentId, studentId));
+    const courseIds = studentEnrollments.map(e => e.courseId);
+    
+    if (courseIds.length === 0) return [];
+
+    return await db!.select()
+      .from(lectures)
+      .where(sql`${lectures.courseId} IN (${sql.join(courseIds.map(id => sql`${id}`), sql`, `)})`);
   }
   async getLecture(id: string) { return (await db!.select().from(lectures).where(eq(lectures.id, id)))[0]; }
   async createLecture(data: InsertLecture) { return (await db!.insert(lectures).values({ ...data, id: randomUUID() }).returning())[0]; }

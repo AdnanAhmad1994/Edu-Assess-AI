@@ -62,16 +62,19 @@ export default function LecturesPage() {
     queryKey: ["/api/courses"],
   });
 
-  const { getUploadParameters } = useUpload({
-    onSuccess: (response) => {
+  const { getUploadParameters } = useUpload();
+
+  const handleUploadComplete = (result: any) => {
+    const file = result.successful[0];
+    if (file && file.meta.objectPath) {
       createLectureMutation.mutate({
-        title: uploadTitle || "Untitled Lecture",
+        title: uploadTitle || file.name || "Untitled Lecture",
         courseId: uploadCourse,
-        fileUrl: response.objectPath,
-        fileType: "document",
+        fileUrl: file.meta.objectPath,
+        fileType: file.type?.startsWith("video/") ? "video" : file.type?.startsWith("image/") ? "image" : "document",
       });
-    },
-  });
+    }
+  };
 
   const createLectureMutation = useMutation({
     mutationFn: async (data: { title: string; courseId: string; fileUrl: string; fileType: string }) => {
@@ -204,7 +207,7 @@ export default function LecturesPage() {
                 <ObjectUploader
                   maxFileSize={52428800}
                   onGetUploadParameters={getUploadParameters}
-                  onComplete={() => {}}
+                  onComplete={handleUploadComplete}
                   buttonClassName="w-full"
                 >
                   <Upload className="w-4 h-4 mr-2" />
