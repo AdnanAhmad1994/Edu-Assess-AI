@@ -68,6 +68,7 @@ export default function AssignmentsPage() {
   const [location, setLocation] = useLocation();
   const searchParams = new URLSearchParams(window.location.search);
   const { user } = useAuth();
+  const isInstructor = user?.role === "instructor" || user?.role === "admin";
   const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(searchParams.get("action") === "create");
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -186,8 +187,6 @@ export default function AssignmentsPage() {
     });
     setIsCreateOpen(true);
   };
-
-  const isInstructor = user?.role === "instructor" || user?.role === "admin";
 
   const filteredAssignments = assignments?.filter((a) => {
     if (activeTab === "all") return true;
