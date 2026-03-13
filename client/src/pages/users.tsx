@@ -403,17 +403,19 @@ export default function UsersPage() {
             data-testid="input-search-users"
           />
         </div>
-        <Select value={roleFilter} onValueChange={setRoleFilter} disabled={user?.role === "instructor"}>
-          <SelectTrigger className="w-[160px]" data-testid="select-filter-role">
-            <SelectValue placeholder="Filter by role" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Roles</SelectItem>
-            {user?.role !== "instructor" && <SelectItem value="admin">Admins</SelectItem>}
-            {user?.role !== "instructor" && <SelectItem value="instructor">Instructors</SelectItem>}
-            <SelectItem value="student">Students</SelectItem>
-          </SelectContent>
-        </Select>
+        {user?.role === "admin" && (
+          <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <SelectTrigger className="w-[160px]" data-testid="select-filter-role">
+              <SelectValue placeholder="Filter by role" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Roles</SelectItem>
+              <SelectItem value="admin">Admins</SelectItem>
+              <SelectItem value="instructor">Instructors</SelectItem>
+              <SelectItem value="student">Students</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {isLoading ? (

@@ -449,6 +449,8 @@ function InstructorDashboard() {
   );
 }
 
+import { JoinCourseDialog } from "@/components/JoinCourseDialog";
+
 function StudentDashboard() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
@@ -488,11 +490,16 @@ function StudentDashboard() {
 
   return (
     <div className="space-y-8 fade-in">
-      <div>
-        <h1 className="text-3xl font-bold">Welcome, {user?.name?.split(" ")[0]}!</h1>
-        <p className="text-muted-foreground mt-1">
-          Stay on track with your learning journey.
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Welcome, {user?.name?.split(" ")[0]}!</h1>
+          <p className="text-muted-foreground mt-1">
+            Stay on track with your learning journey.
+          </p>
+        </div>
+        <div className="shrink-0">
+          <JoinCourseDialog />
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">

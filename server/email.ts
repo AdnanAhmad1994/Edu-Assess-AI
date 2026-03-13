@@ -18,14 +18,14 @@ function getTransporter(): nodemailer.Transporter {
   return transporter;
 }
 
-const FROM_NAME = "EduAssess AI";
+const FROM_NAME = "WantQuiz AI";
 
 export async function sendPasswordResetOTPEmail(to: string, otp: string, name: string): Promise<{ success: boolean; error?: string }> {
   try {
     const info = await getTransporter().sendMail({
       from: `"${FROM_NAME}" <${process.env.SMTP_USER}>`,
       to,
-      subject: "Reset Your Password - EduAssess AI",
+      subject: "Reset Your Password - WantQuiz AI",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="text-align: center; margin-bottom: 30px;">
@@ -63,11 +63,11 @@ export async function sendUsernameReminderEmail(to: string, username: string, na
     const info = await getTransporter().sendMail({
       from: `"${FROM_NAME}" <${process.env.SMTP_USER}>`,
       to,
-      subject: "Your Username - EduAssess AI",
+      subject: "Your Username - WantQuiz AI",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #1a1a2e; margin: 0;">EduAssess AI</h1>
+            <h1 style="color: #1a1a2e; margin: 0;">WantQuiz AI</h1>
             <p style="color: #666; margin: 5px 0 0;">Username Reminder</p>
           </div>
           <div style="background: #f8f9fa; border-radius: 8px; padding: 30px; margin-bottom: 20px;">
@@ -100,11 +100,11 @@ export async function sendOTPVerificationEmail(to: string, otp: string, name: st
     const info = await getTransporter().sendMail({
       from: `"${FROM_NAME}" <${process.env.SMTP_USER}>`,
       to,
-      subject: "Verify your email - EduAssess AI",
+      subject: "Verify your email - WantQuiz AI",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #1a1a2e; margin: 0;">EduAssess AI</h1>
+            <h1 style="color: #1a1a2e; margin: 0;">WantQuiz AI</h1>
             <p style="color: #666; margin: 5px 0 0;">Email Verification</p>
           </div>
           <div style="background: #f8f9fa; border-radius: 8px; padding: 30px; margin-bottom: 20px;">

@@ -111,7 +111,7 @@ export default function Chatbot() {
     {
       id: "welcome",
       role: "assistant",
-      content: "**Hey! I'm your EduAssess AI Co-pilot** — powered by Kimi K2 via OpenRouter 🧠\n\nI know everything about your platform and can handle any task in natural language. Just tell me what you need:\n\n**💬 Try these:**\n- *\"Create a Biology course and add 10 MCQ questions on DNA replication\"*\n- *\"Set the Midterm Quiz time limit to 45 mins and passing score to 70%\"*\n- *\"Enroll Zara Ahmed in CS Fundamentals\"*\n- *\"How many students are enrolled in my courses?\"*\n- *\"Publish all draft quizzes and generate a public link for the Midterm\"*",
+      content: "**Hey! I'm your WantQuiz AI Co-pilot** \n\nI know everything about your platform and can handle any task in natural language. Just tell me what you need:\n\n**💬 Try these:**\n- *\"Create a Biology course and add 10 MCQ questions on DNA replication\"*\n- *\"Set the Midterm Quiz time limit to 45 mins and passing score to 70%\"*\n- *\"Enroll Zara Ahmed in CS Fundamentals\"*\n- *\"How many students are enrolled in my courses?\"*\n- *\"Publish all draft quizzes and generate a public link for the Midterm\"*",
       timestamp: new Date(),
     },
   ]);
@@ -485,8 +485,8 @@ export default function Chatbot() {
               <Sparkles className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-sm">EduAssess Co-pilot</CardTitle>
-              <p className="text-xs text-muted-foreground">Kimi K2 · OpenRouter</p>
+              <CardTitle className="text-sm">WantQuiz AI Co-pilot</CardTitle>
+              <p className="text-xs text-muted-foreground">WantQuiz AI Co-pilot</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -533,19 +533,18 @@ export default function Chatbot() {
                 </div>
               )}
               <div
-                className={`rounded-lg px-3 py-2 text-sm ${
-                  isExpanded ? "max-w-[85%]" : "max-w-[80%]"
-                } ${
-                  message.role === "user"
+                className={`rounded-lg px-3 py-2 text-sm ${isExpanded ? "max-w-[85%]" : "max-w-[80%]"
+                  } ${message.role === "user"
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted"
-                }`}
+                  }`}
               >
-                <div className="whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ __html: message.content
-                  .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                  .replace(/`([^`]+)`/g, '<code class="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-xs font-mono">$1</code>')
-                  .replace(/^(#{1,3})\s(.+)/gm, (_: string, h: string, t: string) => `<strong class="block mt-1">${t}</strong>`)
-                  .replace(/\n/g, '<br/>')
+                <div className="whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{
+                  __html: message.content
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/`([^`]+)`/g, '<code class="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-xs font-mono">$1</code>')
+                    .replace(/^(#{1,3})\s(.+)/gm, (_: string, h: string, t: string) => `<strong class="block mt-1">${t}</strong>`)
+                    .replace(/\n/g, '<br/>')
                 }} />
                 {renderMessageData(message.data)}
               </div>

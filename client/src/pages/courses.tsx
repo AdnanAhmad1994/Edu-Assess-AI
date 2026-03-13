@@ -63,6 +63,8 @@ const courseSchema = z.object({
 
 type CourseFormData = z.infer<typeof courseSchema>;
 
+import { JoinCourseDialog } from "@/components/JoinCourseDialog";
+
 export default function CoursesPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
@@ -207,6 +209,7 @@ export default function CoursesPage() {
             {isInstructor ? "Manage your courses and curriculum" : "Your enrolled courses"}
           </p>
         </div>
+        {!isInstructor && <JoinCourseDialog />}
         {isInstructor && (
           <div className="flex items-center gap-2">
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

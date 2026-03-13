@@ -431,13 +431,9 @@ export async function registerRoutes(
       res.status(500).json({ error: "Fatal debug error: " + e.message });
     }
   });
-  // Admin & Instructor - Get Instructors List
-  app.get("/api/users/instructors", requireAuth, async (req, res) => {
+  // Admin only - Get Instructors List
+  app.get("/api/users/instructors", requireAdmin, async (req, res) => {
     try {
-      const user = await storage.getUser(req.session.userId!);
-      if (user?.role !== "admin" && user?.role !== "instructor") {
-         return res.status(403).json({ error: "Unauthorized" });
-      }
       const instructors = await storage.getUsers("instructor");
       res.json(instructors.map(sanitizeUser));
     } catch (error) {
@@ -463,15 +459,15 @@ export async function registerRoutes(
 
       // Instructor logic: Only show students enrolled in their courses
       if (currentUser.role === "instructor") {
-        // If the instructor is asking for admins or other instructors, deny or return empty
-        if (role === "admin" || role === "instructor") {
+        // Instructors can ONLY see students. If they ask for anything else, return empty.
+        if (role && role !== "student") {
           return res.json([]);
         }
 
         const instructorCourses = await storage.getCourses(currentUser.id);
         const courseIds = instructorCourses.map(c => c.id);
         
-        let allEnrolledStudentIds = new Set<string>();
+        const allEnrolledStudentIds = new Set<string>();
         for (const courseId of courseIds) {
           const enrollments = await storage.getEnrollments(courseId);
           for (const e of enrollments) {
@@ -509,13 +505,12 @@ export async function registerRoutes(
         if (data.role !== "student") {
           return res.status(403).json({ error: "Instructors can only create students." });
         }
-        if (!data.courseId || data.courseId === "none") {
-          return res.status(400).json({ error: "A student must be assigned to a course." });
-        }
-        // Verify the instructor owns the selected course
-        const course = await storage.getCourse(data.courseId);
-        if (!course || course.instructorId !== currentUser.id) {
-          return res.status(403).json({ error: "You can only assign students to your own courses." });
+        // Course assignment is now optional. If provided, verify ownership.
+        if (data.courseId && data.courseId !== "none") {
+          const course = await storage.getCourse(data.courseId);
+          if (!course || course.instructorId !== currentUser.id) {
+            return res.status(403).json({ error: "You can only assign students to your own courses." });
+          }
         }
       }
 
@@ -529,18 +524,14 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Email already exists" });
       }
 
-      if (data.role === "student" && (!data.courseId || data.courseId === "none")) {
-        return res.status(400).json({ error: "A student must be assigned to a course." });
-      }
-
       const hashedPassword = await bcrypt.hash(data.password, 10);
       
       // Omit courseId before saving the user
       const { courseId, ...userData } = data;
       const user = await storage.createUser({ ...userData, password: hashedPassword });
 
-      // Automatically enroll the new student
-      if (user.role === "student" && courseId) {
+      // Automatically enroll the new student if courseId is provided
+      if (user.role === "student" && courseId && courseId !== "none") {
         await storage.createEnrollment({
           courseId,
           studentId: user.id
@@ -633,6 +624,39 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Delete user error:", error);
       res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+
+  // Enrollment - Join by code
+  app.post("/api/enrollments/join", requireAuth, async (req, res) => {
+    try {
+      const { code } = req.body;
+      if (!code) {
+        return res.status(400).json({ error: "Course code is required" });
+      }
+
+      const course = await storage.getCourseByCode(code.trim());
+      if (!course) {
+        return res.status(404).json({ error: "Course not found with this code" });
+      }
+
+      const studentId = req.session.userId!;
+      
+      // Check if already enrolled
+      const existingEnrollments = await storage.getEnrollments(course.id, studentId);
+      if (existingEnrollments.length > 0) {
+        return res.status(400).json({ error: "You are already enrolled in this course" });
+      }
+
+      const enrollment = await storage.createEnrollment({
+        courseId: course.id,
+        studentId: studentId
+      });
+
+      res.status(201).json(enrollment);
+    } catch (error) {
+      console.error("Join course error:", error);
+      res.status(500).json({ error: "Failed to join course" });
     }
   });
 
