@@ -425,7 +425,7 @@ export async function registerRoutes(
     res.json(sanitizeUser(user));
   });
 
-  // Database Debugging Endpoint (Temporary)
+  // Database Debugging Endpoint (Detailed)
   app.get("/api/debug-db", async (req, res) => {
     try {
       const { db, pool } = require("./db");
@@ -433,11 +433,17 @@ export async function registerRoutes(
       const hasPool = !!pool;
       let testQuery = null;
       let errStr = null;
+      let userCount = 0;
+      let adminExists = false;
 
       if (pool) {
         try {
           const result = await pool.query("SELECT 1 as auth_check");
           testQuery = result.rows[0];
+          
+          const usersRes = await pool.query("SELECT count(*), bool_or(username = 'admin') as admin_exists FROM users");
+          userCount = parseInt(usersRes.rows[0].count);
+          adminExists = usersRes.rows[0].admin_exists;
         } catch (e: any) {
           errStr = e.message;
         }
@@ -445,10 +451,14 @@ export async function registerRoutes(
 
       res.json({
         hasDatabaseUrl: !!process.env.DATABASE_URL,
+        databaseUrlLength: process.env.DATABASE_URL?.length || 0,
         databaseHost: process.env.DATABASE_URL ? process.env.DATABASE_URL.split('@')[1]?.split('/')[0] : null,
         drizzleInitialized: hasDb,
         poolInitialized: hasPool,
         testQuerySuccess: testQuery,
+        userCount,
+        adminExists,
+        nodeEnv: process.env.NODE_ENV || "not set",
         error: errStr
       });
     } catch (e: any) {
