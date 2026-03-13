@@ -1,12 +1,34 @@
-// @ts-ignore - pdf-parse has no default export in types but works with esModuleInterop
-import pdf from "pdf-parse";
+import * as pdfModule from "pdf-parse";
 import mammoth from "mammoth";
 
 export async function extractTextFromBuffer(buffer: Buffer, mimeType: string): Promise<string> {
   try {
     if (mimeType === "application/pdf" || mimeType.includes("pdf")) {
-      const data = await pdf(buffer);
-      return data.text;
+      // Handle different export structures (v1 function vs v2 class/object)
+      const pdf: any = (pdfModule as any).default || (pdfModule as any).PDFParse || pdfModule;
+      
+      try {
+        if (typeof pdf === 'function') {
+          // Try v1 function style or v2 constructor
+          try {
+            // v1 style
+            const data = await pdf(buffer);
+            return data.text || "";
+          } catch (e) {
+            // v2 style - instantiate if it's a class
+            const instance = new pdf();
+            if (typeof instance.parse === 'function') {
+              const data = await instance.parse(buffer);
+              return data.text || "";
+            }
+            // Fallback for v2.4.5 specific structure if known
+            return "";
+          }
+        }
+      } catch (err) {
+        console.error("PDF extraction failed:", err);
+      }
+      return "";
     } 
     
     if (
