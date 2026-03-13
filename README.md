@@ -43,13 +43,17 @@ Edu-Assess-AI is a premium, AI-powered educational assessment platform designed 
 Create a `.env` file in the root directory:
 
 ```env
-DATABASE_URL=your_postgres_url
-SESSION_SECRET=your_secure_secret
+SESSION_SECRET=local-dev-secret-1234567890
+GROQ_API_KEY=your_groq_api_key
+# IMPORTANT: Use Supabase Pooler URL (Port 6543) for better reliability
+DATABASE_URL=postgresql://user:password@host:6543/postgres?pgbouncer=true
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_app_password
 GENAI_API_KEY=your_google_gemini_api_key
-# Optional for Google Drive storage
-GOOGLE_DRIVE_CLIENT_EMAIL=...
-GOOGLE_DRIVE_PRIVATE_KEY=...
-GOOGLE_DRIVE_FOLDER_ID=...
+# Optional: Google Drive integration (for lecture files)
+# GOOGLE_DRIVE_CLIENT_EMAIL=...
+# GOOGLE_DRIVE_PRIVATE_KEY=...
+# GOOGLE_DRIVE_FOLDER_ID=...
 ```
 
 ### Local Development
