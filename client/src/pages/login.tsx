@@ -46,11 +46,12 @@ export default function LoginPage() {
     if (result === true) {
       toast({ title: "Welcome back!", description: "You have successfully logged in." });
       setLocation("/dashboard");
-    } else if (result && typeof result === "object" && result.requiresVerification) {
+    } else if (result && typeof result === "object" && result.requiresVerification && result.email) {
       toast({ title: "Verification required", description: "Please verify your email." });
       setLocation(`/verify-email?email=${encodeURIComponent(result.email)}`);
     } else {
-      toast({ title: "Login failed", description: "Invalid username or password.", variant: "destructive" });
+      const errorMessage = (result && typeof result === "object" && result.error) || "Invalid username or password.";
+      toast({ title: "Login failed", description: errorMessage, variant: "destructive" });
     }
   };
 

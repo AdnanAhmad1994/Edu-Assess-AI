@@ -9,7 +9,8 @@ const { Pool } = pg;
 export const pool = process.env.DATABASE_URL
   ? new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL.includes("supabase")
+      // In production (Netlify/Vercel) or when using Supabase, enable SSL with loose cert check
+      ssl: process.env.NODE_ENV === "production" || process.env.DATABASE_URL.includes("supabase")
         ? { rejectUnauthorized: false }
         : undefined,
     })

@@ -211,6 +211,11 @@ export async function registerRoutes(
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { username, password } = req.body;
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password are required" });
+      }
+
+      console.log(`[AUTH] Login attempt for: ${username}`);
       const input = username.trim();
       let user = await storage.getUserByUsername(input);
       
@@ -218,20 +223,29 @@ export async function registerRoutes(
         user = await storage.getUserByEmail(input.toLowerCase());
       }
 
-      if (!user || !(await bcrypt.compare(password, user.password))) {
-        return res.status(401).json({ error: "Invalid credentials" });
+      if (!user) {
+        console.log(`[AUTH] User not found: ${username}`);
+        return res.status(401).json({ error: "Invalid username or password" });
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        console.log(`[AUTH] Invalid password for: ${username}`);
+        return res.status(401).json({ error: "Invalid username or password" });
       }
 
       if (user.isVerified === false) {
+        console.log(`[AUTH] User not verified: ${username}`);
         return res.status(403).json({ error: "User not verified", requiresVerification: true, email: user.email });
       }
 
       req.session.userId = user.id;
       console.log(`[AUTH] Login successful for user: ${user.username} (id: ${user.id})`);
       res.json(sanitizeUser(user));
-    } catch (error) {
+    } catch (error: any) {
       console.error("[AUTH] Login error:", error);
-      res.status(500).json({ error: "Login failed" });
+      // Return the specific error message to help debugging on Netlify
+      res.status(500).json({ error: `Login failed: ${error.message}` });
     }
   });
 

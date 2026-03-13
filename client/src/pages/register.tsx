@@ -59,8 +59,8 @@ export default function RegisterPage() {
     if (result === true) {
       toast({ title: "Account created!", description: "Welcome to EduAssess AI." });
       setLocation("/dashboard");
-    } else if (result && typeof result === "object" && result.requiresVerification) {
-      toast({ title: "Account created!", description: "Please check your email for the verification code." });
+    } else if (result && typeof result === "object" && result.requiresVerification && result.email) {
+      toast({ title: "Registration successful", description: "Please verify your email." });
       setLocation(`/verify-email?email=${encodeURIComponent(result.email)}`);
     } else {
       toast({ title: "Registration failed", description: "This username or email may already be in use.", variant: "destructive" });

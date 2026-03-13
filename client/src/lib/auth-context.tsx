@@ -4,8 +4,8 @@ import type { User } from "@shared/schema";
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<boolean | { requiresVerification: boolean, email: string }>;
-  register: (data: { username: string; password: string; email: string; name: string; role: string }) => Promise<boolean | { requiresVerification: boolean, email: string }>;
+  login: (username: string, password: string) => Promise<boolean | { requiresVerification?: boolean, email?: string, error?: string }>;
+  register: (data: { username: string; password: string; email: string; name: string; role: string }) => Promise<boolean | { requiresVerification?: boolean, email?: string, error?: string }>;
   logout: () => Promise<void>;
   refetchUser: () => Promise<void>;
   setAuthData: (user: User | null) => void;
@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (username: string, password: string): Promise<boolean | { requiresVerification: boolean, email: string }> => {
+  const login = async (username: string, password: string): Promise<boolean | { requiresVerification?: boolean, email?: string, error?: string }> => {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -53,14 +53,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data);
         return true;
       }
-      return false;
-    } catch (error) {
+      return data;
+    } catch (error: any) {
       console.error("Login failed:", error);
-      return false;
+      return { error: error.message || "Network error" };
     }
   };
 
-  const register = async (data: { username: string; password: string; email: string; name: string; role: string }): Promise<boolean | { requiresVerification: boolean, email: string }> => {
+  const register = async (data: { username: string; password: string; email: string; name: string; role: string }): Promise<boolean | { requiresVerification?: boolean, email?: string, error?: string }> => {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
