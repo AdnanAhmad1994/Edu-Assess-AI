@@ -10,7 +10,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { GraduationCap, Users, BookOpen, Shield } from "lucide-react";
+import { GraduationCap, Users, BookOpen, Shield, ChevronLeft } from "lucide-react";
+import { Link } from "wouter";
 
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -113,7 +114,10 @@ export default function RegisterPage() {
 
       <div className="flex-1 flex items-center justify-center p-8 bg-background">
         <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
+          <CardHeader className="text-center relative">
+            <Link href="/" className="absolute left-6 top-8 text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 text-xs">
+              <ChevronLeft className="w-3 h-3" /> Back
+            </Link>
             <div className="lg:hidden flex items-center justify-center gap-2 mb-4">
               <div className="w-10 h-10 rounded-lg gradient-primary flex items-center justify-center">
                 <GraduationCap className="w-6 h-6 text-white" />

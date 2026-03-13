@@ -105,12 +105,12 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+import LandingPage from "@/pages/landing";
+
 function Router() {
   return (
     <Switch>
-      <Route path="/">
-        <Redirect to="/dashboard" />
-      </Route>
+      <Route path="/" component={LandingPage} />
       <Route path="/login">
         <PublicOnlyRoute component={LoginPage} />
       </Route>

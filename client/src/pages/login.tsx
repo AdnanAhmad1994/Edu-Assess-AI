@@ -9,7 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { GraduationCap, Sparkles, Grid3X3, KeyRound } from "lucide-react";
+import { GraduationCap, Sparkles, Grid3X3, KeyRound, ChevronLeft } from "lucide-react";
+import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import PatternLockGrid from "@/components/pattern-lock-grid";
 
@@ -123,7 +124,10 @@ export default function LoginPage() {
 
       <div className="flex-1 flex items-center justify-center p-8 bg-background">
         <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
+          <CardHeader className="text-center relative">
+            <Link href="/" className="absolute left-6 top-8 text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 text-xs">
+              <ChevronLeft className="w-3 h-3" /> Back
+            </Link>
             <div className="lg:hidden flex items-center justify-center gap-2 mb-4">
               <div className="w-10 h-10 rounded-lg gradient-primary flex items-center justify-center">
                 <GraduationCap className="w-6 h-6 text-white" />
