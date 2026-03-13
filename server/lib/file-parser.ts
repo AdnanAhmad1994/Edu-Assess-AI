@@ -1,6 +1,5 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const pdf = require("pdf-parse");
+// @ts-ignore - pdf-parse has no default export in types but works with esModuleInterop
+import pdf from "pdf-parse";
 import mammoth from "mammoth";
 
 export async function extractTextFromBuffer(buffer: Buffer, mimeType: string): Promise<string> {
