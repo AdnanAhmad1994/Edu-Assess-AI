@@ -1,98 +1,87 @@
-# Edu-Assess-AI
+# Edu-Assess-AI 🎓🤖
 
-Edu-Assess-AI is a premium, AI-powered educational assessment platform designed to streamline quiz creation, delivery, and analysis. It provides instructors with powerful tools to generate assessments using AI, schedule them with precision, and monitor student performance through advanced analytics.
+Edu-Assess-AI is a premium, AI-powered educational assessment platform designed to streamline quiz creation, delivery, and analysis. Powered by **Google Gemini**, it provides instructors with cutting-edge tools to generate assessments, monitor student performance with advanced proctoring, and manage educational content.
 
 ## 🚀 Key Features
 
-### 🧠 AI-Powered Quiz Generation
-- **Intelligent Creation**: Generate high-quality MCQs from text descriptions or uploaded lecture materials.
-- **Provider Support**: Seamless integration with multiple AI providers (Groq, OpenAI, Google Gemini).
-- **Customizable Difficulty**: Tailor questions based on difficulty levels (Easy, Medium, Hard).
+### 🧠 Intelligent AI Quiz Generation
+- **Dynamic Creation**: Generate high-quality MCQs and essay questions directly from uploaded PDF/Docx lectures or text descriptions.
+- **Provider Choice**: Full integration with **Google Gemini (2.0/2.5)**, Groq, and OpenAI.
+- **Context-Aware**: AI understands the nuance of your content for accurate testing.
 
-### 📅 Advanced Quiz Scheduling
-- **Precise Timing**: Set exact **Start** and **End** dates and times for quiz availability.
-- **Automated Locking**: Quizzes automatically become available when scheduled and lock immediately upon expiration.
-- **Live Status Badges**: Students see real-time "Upcoming", "Available", or "Expired" statuses with exact time windows.
+### 🛡️ Advanced Proctoring & Security
+- **Multi-layer Anti-Cheat**: Real-time tracking of tab switching and browser focus loss.
+- **Violation Thresholds**: Automatic flagging and submission lock based on customizable violation limits.
+- **Pattern Authentication**: Secure "Pattern Lock" login option for enhanced user security.
 
-### 🛡️ Smart Proctoring & Anti-Cheat
-- **Violation Tracking**: Monitor browser focus loss and tab switching during attempts.
-- **Pattern Detection**: Advanced logic to identify suspicious behavior.
-- **Violation Thresholds**: Set customizable limits for allowed violations before flagging.
+### 📅 Advanced Scheduling & Access
+- **Precision Timing**: Set exact availability windows for quizzes and assignments.
+- **Status Badges**: Real-time "Upcoming", "Active", and "Expired" indicators for students.
+- **Public Quiz Links**: Shared access for guest attempts with custom identification fields.
 
-### 📊 Comprehensive Analytics & Gradebook
-- **Instructor Dashboard**: Overview of total students, average scores, and pending grading.
-- **Visual Performance Charts**: Dynamic score distribution and performance trend visualization using Recharts.
-- **Dynamic Gradebook**: Real-time access to student performance across all courses and quizzes.
-- **Recent Performance tracking**: Keep track of the latest student submissions and scores.
+### 📁 Smart Content Management
+- **Google Drive Integration**: Seamlessly store and retrieve lecture files using Google Drive API.
+- **Multiple Formats**: Support for PDF, Word (.docx), and Excel (.xlsx) file parsing.
 
-### 👥 Role-Based Access Control
-- **Admin**: Full system management, user control, and global settings.
-- **Instructor**: Manage courses, create quizzes, and analyze student results.
-- **Student**: Attempt assigned quizzes, view results, and track progress.
-
----
+### 📊 Professional Analytics
+- **Dynamic Gradebook**: Comprehensive view of all student performance across courses.
+- **Visual Insights**: Performance trends, score distributions, and top/low performer analytics using Recharts.
 
 ## 🛠️ Technology Stack
 
-- **Frontend**: React, Vite, Tailwind CSS, Lucide Icons, Recharts, Radix UI.
-- **Backend**: Node.js, Express.
-- **Database**: Supabase (PostgreSQL) with Drizzle ORM.
-- **State Management**: TanStack Query (React Query).
-- **Authentication**: Passport.js with Session Management.
-- **AI Integration**: Groq SDK, Google Generative AI.
+- **Frontend**: React, Vite, Tailwind CSS, Shadcn/ui, Framer Motion.
+- **Backend**: Node.js, Express, Netlify Functions.
+- **Database**: PostgreSQL (Supabase/Postgres) with **Drizzle ORM**.
+- **Auth**: Passport.js (Session-based) + Email OTP Verification.
+- **Storage**: Google Drive / Supabase Object Storage.
 
 ---
 
-## ⚙️ Getting Started
+## ⚙️ Setup & Deployment
 
-### Prerequisites
-- Node.js (v18+)
-- Supabase Account (for PostgreSQL)
+### Environment Variables
+Create a `.env` file in the root directory:
 
-### Installation
+```env
+DATABASE_URL=your_postgres_url
+SESSION_SECRET=your_secure_secret
+GENAI_API_KEY=your_google_gemini_api_key
+# Optional for Google Drive storage
+GOOGLE_DRIVE_CLIENT_EMAIL=...
+GOOGLE_DRIVE_PRIVATE_KEY=...
+GOOGLE_DRIVE_FOLDER_ID=...
+```
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/Abdulrahman50ab/Edu-Access-.git
-   cd Edu-Access-
-   ```
+### Local Development
 
-2. **Install dependencies**:
+1. **Install dependencies**:
    ```bash
    npm install
    ```
 
-3. **Configure Environment Variables**:
-   Create a `.env` file in the root directory and add the following:
-   ```env
-   DATABASE_URL=your_postgres_url
-   GROQ_API_KEY=your_groq_api_key
-   GENAI_API_KEY=your_google_ai_key
-   SESSION_SECRET=your_secure_secret
-   ```
-
-4. **Database Push**:
+2. **Sync Database**:
    ```bash
    npm run db:push
    ```
 
-5. **Run the development server**:
+3. **Start Development Server**:
    ```bash
    npm run dev
    ```
 
----
+### 🌍 Netlify Deployment
 
-## 🎨 UI/UX Design
-
-Edu-Assess-AI features a premium, responsive design with:
-- **Glassmorphism effects**
-- **Sleek Dark Mode support**
-- **Smooth micro-animations**
-- **Modern typography (Inter/Geist)**
+This project is optimized for Netlify Functions. When deploying:
+1. Set the **Build Command** to `npm run build`.
+2. Set the **Publish Directory** to `dist`.
+3. Add all `.env` variables to Netlify's Environment Variables settings.
+4. **Important**: Add `NODE_ENV=production` to ensure SSL and performance optimizations are active.
 
 ---
+
+## 🔍 Debugging
+Use the built-in diagnostic endpoint to verify database health:
+`/api/debug-db`
 
 ## 📜 License
-
 This project is licensed under the MIT License.
