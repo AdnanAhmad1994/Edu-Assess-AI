@@ -75,7 +75,6 @@ This project is optimized for Netlify Functions. When deploying:
 1. Set the **Build Command** to `npm run build`.
 2. Set the **Publish Directory** to `dist`.
 3. Add all `.env` variables to Netlify's Environment Variables settings.
-4. **Important**: Add `NODE_ENV=production` to ensure SSL and performance optimizations are active.
 
 ---
 
