@@ -180,17 +180,20 @@ export function useUpload(options: UseUploadOptions = {}) {
 
       const data = await response.json();
       
-      // Store the objectPath in the file's metadata so it can be accessed in onComplete
-      file.meta = {
-        ...file.meta,
-        objectPath: data.objectPath,
-      };
+      // Ensure the URL is absolute for Uppy's AwsS3 plugin
+      const uploadURL = data.uploadURL.startsWith("http") 
+        ? data.uploadURL 
+        : `${window.location.origin}${data.uploadURL}`;
 
       return {
         method: "PUT",
-        url: data.uploadURL,
+        url: uploadURL,
         headers: { "Content-Type": file.type || "application/octet-stream" },
-      };
+        // Return meta so ObjectUploader can sync it back to Uppy
+        meta: {
+          objectPath: data.objectPath,
+        },
+      } as any;
     },
     []
   );

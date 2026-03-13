@@ -55,6 +55,7 @@ const adminMenuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Users", url: "/users", icon: Users },
   { title: "Courses", url: "/courses", icon: BookOpen },
+  { title: "Lectures", url: "/lectures", icon: FolderOpen },
   { title: "Gradebook", url: "/gradebook", icon: BookMarked },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Settings", url: "/settings", icon: Settings },

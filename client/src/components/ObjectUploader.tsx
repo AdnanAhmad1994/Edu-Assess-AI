@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import Uppy from "@uppy/core";
 import type { UppyFile, UploadResult } from "@uppy/core";
@@ -68,6 +68,8 @@ export function ObjectUploader({
   children,
 }: ObjectUploaderProps) {
   const [showModal, setShowModal] = useState(false);
+  const objectPaths = useRef<Record<string, string>>({});
+
   const [uppy] = useState(() =>
     new Uppy({
       restrictions: {
@@ -78,12 +80,52 @@ export function ObjectUploader({
     })
       .use(AwsS3, {
         shouldUseMultipart: false,
-        getUploadParameters: onGetUploadParameters,
-      })
-      .on("complete", (result) => {
-        onComplete?.(result);
+        getUploadParameters: async (file) => {
+          const params = await onGetUploadParameters(file);
+          if ((params as any).meta?.objectPath) {
+            objectPaths.current[file.id] = (params as any).meta.objectPath;
+            // Also try setting it on uppy for good measure
+            uppy.setFileMeta(file.id, (params as any).meta);
+          }
+          return params;
+        },
       })
   );
+
+  useEffect(() => {
+    const handleComplete = (result: any) => {
+      console.log("Uppy complete event:", result);
+      // Inject objectPath from our local map if it's missing in Uppy's result
+      result.successful.forEach((file: any) => {
+        if (!file.meta.objectPath && objectPaths.current[file.id]) {
+          file.meta.objectPath = objectPaths.current[file.id];
+        }
+      });
+      onComplete?.(result);
+    };
+
+    const handleSuccess = (file: any, response: any) => {
+      console.log("Uppy upload-success event:", file.id, response);
+      // Ensure the path is in the file meta even before 'complete'
+      if (!file.meta.objectPath && objectPaths.current[file.id]) {
+        uppy.setFileMeta(file.id, { objectPath: objectPaths.current[file.id] });
+      }
+    };
+
+    const handleError = (file: any, error: any, response: any) => {
+      console.error("Uppy upload-error event:", file?.id, error, response);
+    };
+
+    uppy.on("complete", handleComplete);
+    uppy.on("upload-success", handleSuccess);
+    uppy.on("upload-error", handleError);
+
+    return () => {
+      uppy.off("complete", handleComplete);
+      uppy.off("upload-success", handleSuccess);
+      uppy.off("upload-error", handleError);
+    };
+  }, [uppy, onComplete]);
 
   return (
     <div>

@@ -73,8 +73,10 @@ export function registerObjectStorageRoutes(app: Express): void {
         return res.status(400).json({ error: "Invalid file content" });
       }
 
-      await objectStorageService.saveLocalObject(uuid, buffer);
-      res.status(200).json({ message: "File uploaded successfully" });
+      console.log(`Received local upload for ${uuid}, size: ${buffer.length} bytes, type: ${req.headers['content-type']}`);
+      await objectStorageService.saveLocalObject(uuid, buffer, req.headers['content-type'] as string);
+      res.setHeader("Location", `/api/objects/${uuid}`);
+      res.status(200).send();
     } catch (error) {
       console.error("Local upload error:", error);
       res.status(500).json({ error: "Failed to upload file locally" });
@@ -84,14 +86,13 @@ export function registerObjectStorageRoutes(app: Express): void {
   /**
    * Serve uploaded objects.
    *
-   * GET /objects/:objectPath(*)
-   *
-   * This serves files from object storage. For public files, no auth needed.
-   * For protected files, add authentication middleware and ACL checks.
+   * GET /api/objects/:objectId
    */
-  app.get(/^\/objects\/(.+)$/, async (req, res) => {
+  app.get(/^\/api\/objects\/(.+)$/, async (req, res) => {
     try {
-      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      const objectId = req.params[0];
+      const objectPath = `/objects/${objectId}`;
+      const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
       await objectStorageService.downloadObject(objectFile, res);
     } catch (error) {
       console.error("Error serving object:", error);

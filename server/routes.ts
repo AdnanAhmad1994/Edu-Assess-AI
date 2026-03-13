@@ -1864,25 +1864,15 @@ Return ONLY a JSON array of violations found (empty array if none):
       if (violations.length > 0 && imageData) {
         try {
           const objService = new ObjectStorageService();
-          const privateDir = process.env.PRIVATE_OBJECT_DIR;
-          if (privateDir) {
-            const { randomUUID } = await import("crypto");
-            const screenshotId = randomUUID();
-            const fullPath = `${privateDir}/screenshots/${screenshotId}.jpg`;
-            // fullPath format: /<bucket>/<object>
-            const parts = fullPath.replace(/^\//, "").split("/");
-            const bucketName = parts[0];
-            const objectName = parts.slice(1).join("/");
-            const { objectStorageClient } = await import("./replit_integrations/object_storage");
-            const bucket = objectStorageClient.bucket(bucketName);
-            const file = bucket.file(objectName);
-            const base64Data = imageData.split(",")[1] || imageData;
-            const buffer = Buffer.from(base64Data, "base64");
-            await file.save(buffer, { contentType: "image/jpeg" });
-            screenshotPath = `/objects/screenshots/${screenshotId}.jpg`;
-          }
+          const { randomUUID } = await import("crypto");
+          const screenshotId = randomUUID();
+          const base64Data = imageData.split(",")[1] || imageData;
+          const buffer = Buffer.from(base64Data, "base64");
+          
+          await objService.saveLocalObject(`screenshots/${screenshotId}.jpg`, buffer, "image/jpeg");
+          screenshotPath = `/api/objects/screenshots/${screenshotId}.jpg`;
         } catch (uploadError) {
-          console.warn("Screenshot upload to GCS failed (non-critical):", uploadError);
+          console.warn("Screenshot upload failed (non-critical):", uploadError);
         }
       }
 

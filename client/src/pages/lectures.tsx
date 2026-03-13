@@ -65,13 +65,35 @@ export default function LecturesPage() {
   const { getUploadParameters } = useUpload();
 
   const handleUploadComplete = (result: any) => {
+    console.log("Upload result:", result);
+    
+    if (result.failed.length > 0) {
+      console.error("Upload failed for files:", result.failed);
+      const errors = result.failed.map((f: any) => f.error).filter(Boolean).join(", ");
+      toast({ 
+        title: "Upload failed", 
+        description: errors || "The server could not process the file. Please try a smaller file or a different format.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const file = result.successful[0];
+    
     if (file && file.meta.objectPath) {
+      console.log("Creating lecture with path:", file.meta.objectPath);
       createLectureMutation.mutate({
         title: uploadTitle || file.name || "Untitled Lecture",
         courseId: uploadCourse,
         fileUrl: file.meta.objectPath,
         fileType: file.type?.startsWith("video/") ? "video" : file.type?.startsWith("image/") ? "image" : "document",
+      });
+    } else if (result.successful.length > 0) {
+      console.error("Upload successful but objectPath missing", result);
+      toast({ 
+        title: "Upload logic error", 
+        description: "File was uploaded but its reference was lost. Please try again.",
+        variant: "destructive"
       });
     }
   };
@@ -86,6 +108,14 @@ export default function LecturesPage() {
       setIsUploadOpen(false);
       setUploadTitle("");
       toast({ title: "Lecture uploaded", description: "Your lecture has been uploaded successfully." });
+    },
+    onError: (error: any) => {
+      console.error("Lecture creation failed:", error);
+      toast({ 
+        title: "Lecture creation failed", 
+        description: error.message || "Something went wrong while saving the lecture.",
+        variant: "destructive"
+      });
     },
   });
 
@@ -280,7 +310,10 @@ export default function LecturesPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => window.open(lecture.fileUrl?.startsWith('/objects/') ? `/api${lecture.fileUrl}` : `/api/objects/${lecture.fileUrl}`, "_blank")}
+                        onClick={() => {
+                          const fileId = lecture.fileUrl?.split('/').pop();
+                          window.open(`/api/objects/${fileId}`, "_blank");
+                        }}
                         title="Download"
                       >
                         <Download className="w-4 h-4" />
