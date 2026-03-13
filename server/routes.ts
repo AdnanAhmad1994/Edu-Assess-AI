@@ -95,6 +95,7 @@ export async function registerRoutes(
   // Session store: PostgreSQL when DATABASE_URL is set (production), else in-memory (local dev)
   let sessionStore: session.Store;
   if (process.env.DATABASE_URL) {
+    console.log("[SESSION] Initializing PgSession store using DATABASE_URL");
     const PgSession = connectPgSimple(session);
     sessionStore = new PgSession({
       conString: process.env.DATABASE_URL,
@@ -102,8 +103,13 @@ export async function registerRoutes(
       createTableIfMissing: true,
     });
   } else {
+    console.log("[SESSION] DATABASE_URL not found, falling back to MemoryStore (Warning: Sessions will not persist in Netlify Functions)");
     const MStore = MemoryStore(session);
     sessionStore = new MStore({ checkPeriod: 86400000 });
+  }
+
+  if (!process.env.SESSION_SECRET && process.env.NODE_ENV === "production") {
+    console.warn("[SESSION] Warning: SESSION_SECRET is not set in production. Using insecure default.");
   }
 
   app.use(
@@ -115,9 +121,9 @@ export async function registerRoutes(
       cookie: {
         secure: process.env.NODE_ENV === "production",
         httpOnly: true,
-        // Netlify deployments often require SameSite=none because the API and frontend
-        // may technically be treated as different cross-site requests by the browser
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        // Using 'lax' is generally safer for primary deployment domains
+        // and avoids issues with SameSite=None requirements
+        sameSite: "lax",
         maxAge: 24 * 60 * 60 * 1000,
       },
     })
@@ -221,9 +227,10 @@ export async function registerRoutes(
       }
 
       req.session.userId = user.id;
+      console.log(`[AUTH] Login successful for user: ${user.username} (id: ${user.id})`);
       res.json(sanitizeUser(user));
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("[AUTH] Login error:", error);
       res.status(500).json({ error: "Login failed" });
     }
   });
