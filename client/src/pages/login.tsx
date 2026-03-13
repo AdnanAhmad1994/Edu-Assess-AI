@@ -71,9 +71,20 @@ export default function LoginPage() {
       await refetchUser();
       toast({ title: "Welcome back!", description: "You have successfully logged in." });
       setLocation("/dashboard");
-    } catch {
+    } catch (error: any) {
       setPatternError(true);
-      toast({ title: "Login failed", description: "Invalid username or pattern.", variant: "destructive" });
+      let errorMessage = "Invalid username or pattern.";
+      if (error.message?.includes(":")) {
+        const parts = error.message.split(":");
+        const content = parts.slice(1).join(":").trim();
+        try {
+          const parsed = JSON.parse(content);
+          errorMessage = parsed.error || content;
+        } catch {
+          errorMessage = content;
+        }
+      }
+      toast({ title: "Login failed", description: errorMessage, variant: "destructive" });
       setTimeout(() => setPatternError(false), 1000);
     } finally {
       setIsLoading(false);

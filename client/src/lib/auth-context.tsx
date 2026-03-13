@@ -67,18 +67,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+      const dataRes = await res.json();
       if (res.ok) {
-        const userData = await res.json();
-        if (userData.requiresVerification) {
+        if (dataRes.requiresVerification) {
           return { requiresVerification: true, email: data.email };
         }
-        setUser(userData);
+        setUser(dataRes);
         return true;
       }
-      return false;
-    } catch (error) {
+      return dataRes;
+    } catch (error: any) {
       console.error("Registration failed:", error);
-      return false;
+      return { error: error.message || "Network error" };
     }
   };
 

@@ -819,6 +819,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Username and pattern are required" });
       }
       
+      console.log(`[AUTH] Pattern login attempt for: ${username}`);
       const input = username.trim();
       let user = await storage.getUserByUsername(input);
       
@@ -826,19 +827,34 @@ export async function registerRoutes(
         user = await storage.getUserByEmail(input.toLowerCase());
       }
       
-      if (!user || !user.patternHash) {
-        return res.status(401).json({ error: "Invalid credentials" });
+      if (!user) {
+        console.log(`[AUTH] Pattern login: User not found: ${username}`);
+        return res.status(401).json({ error: "Invalid username or pattern" });
       }
+
+      if (!user.patternHash) {
+        console.log(`[AUTH] Pattern login: No pattern set for: ${username}`);
+        return res.status(401).json({ error: "No pattern login set for this account. Please use password login." });
+      }
+
       const patternString = pattern.join("-");
       const isMatch = await bcrypt.compare(patternString, user.patternHash);
       if (!isMatch) {
-        return res.status(401).json({ error: "Invalid credentials" });
+        console.log(`[AUTH] Pattern login: Invalid pattern for: ${username}`);
+        return res.status(401).json({ error: "Invalid username or pattern" });
       }
+
+      if (user.isVerified === false) {
+        console.log(`[AUTH] Pattern login: User not verified: ${username}`);
+        return res.status(403).json({ error: "User not verified", requiresVerification: true, email: user.email });
+      }
+
       req.session.userId = user.id;
+      console.log(`[AUTH] Pattern login successful: ${user.username}`);
       res.json(sanitizeUser(user));
-    } catch (error) {
-      console.error("Pattern login error:", error);
-      res.status(500).json({ error: "Login failed" });
+    } catch (error: any) {
+      console.error("[AUTH] Pattern login error:", error);
+      res.status(500).json({ error: `Login failed: ${error.message}` });
     }
   });
 
