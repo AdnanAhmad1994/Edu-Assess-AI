@@ -101,9 +101,6 @@ export default function QuizBuilderPage() {
     ? new URLSearchParams(useSearch()).get("courseId")
     : null;
 
-  const { data: lectures } = useQuery<Lecture[]>({
-    queryKey: ["/api/lectures"],
-  });
 
   const form = useForm<QuizFormData>({
     resolver: zodResolver(quizSchema),
@@ -288,30 +285,6 @@ export default function QuizBuilderPage() {
     );
   };
 
-  const handleGenerateFromLecture = (lecture: Lecture) => {
-    const courseId = form.getValues("courseId");
-    if (!courseId) {
-      toast({ title: "Select a course", description: "Please select a course first.", variant: "destructive" });
-      return;
-    }
-    if (!lecture.fileUrl) {
-      toast({ title: "No file", description: "This lecture doesn't have an attached file.", variant: "destructive" });
-      return;
-    }
-
-    setIsGenerating(true);
-    generateFromFileMutation.mutate(
-      {
-        fileUrl: lecture.fileUrl,
-        fileName: lecture.title,
-        fileType: lecture.fileType || "application/pdf",
-        numQuestions,
-        difficulty: "mixed",
-        courseId,
-      },
-      { onSettled: () => setIsGenerating(false) }
-    );
-  };
 
   const onSubmit = (data: QuizFormData) => {
     if (questions.length === 0) {
@@ -338,7 +311,6 @@ export default function QuizBuilderPage() {
     });
   };
 
-  const courseLectures = lectures?.filter((l) => l.courseId === form.watch("courseId") && l.fileUrl) || [];
 
   return (
     <div className="space-y-6 fade-in max-w-4xl">
@@ -509,12 +481,6 @@ export default function QuizBuilderPage() {
                     <Upload className="w-4 h-4 mr-2" />
                     From File
                   </TabsTrigger>
-                  {courseLectures.length > 0 && (
-                    <TabsTrigger value="lecture" data-testid="tab-lecture-questions">
-                      <FileText className="w-4 h-4 mr-2" />
-                      From Lecture
-                    </TabsTrigger>
-                  )}
                 </TabsList>
 
                 <TabsContent value="ai" className="space-y-4">
@@ -661,76 +627,6 @@ export default function QuizBuilderPage() {
                   </div>
                 </TabsContent>
 
-                {courseLectures.length > 0 && (
-                  <TabsContent value="lecture" className="space-y-4">
-                    <div className="rounded-lg border border-dashed border-primary/50 bg-primary/5 p-6">
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center shrink-0">
-                          <FileText className="w-6 h-6 text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold mb-1">Generate from Lecture</h3>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            Select an existing lecture file from this course. AI will analyze it and generate quiz questions.
-                          </p>
-
-                          <div className="flex items-center gap-4 mb-6 p-4 rounded-lg border bg-background/50">
-                            <div className="flex flex-col gap-1.5 w-32">
-                              <Label htmlFor="lecture-num-questions" className="text-xs">Number of Questions</Label>
-                              <Input
-                                id="lecture-num-questions"
-                                type="number"
-                                min={1}
-                                max={20}
-                                value={numQuestions}
-                                onChange={(e) => setNumQuestions(parseInt(e.target.value) || 1)}
-                                data-testid="input-num-questions-lecture"
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-xs text-muted-foreground mt-5">
-                                Specified questions will be generated as MCQs for the selected lecture.
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            {courseLectures.map((lecture) => (
-                              <div
-                                key={lecture.id}
-                                className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-background"
-                              >
-                                <div className="flex items-center gap-3 min-w-0 flex-1">
-                                  <FileText className="w-5 h-5 text-muted-foreground shrink-0" />
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium truncate">{lecture.title}</p>
-                                    <p className="text-xs text-muted-foreground">{lecture.fileType || "Document"}</p>
-                                  </div>
-                                </div>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  onClick={() => handleGenerateFromLecture(lecture)}
-                                  disabled={isGenerating}
-                                  data-testid={`button-generate-from-lecture-${lecture.id}`}
-                                >
-                                  {isGenerating ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <Sparkles className="w-4 h-4 mr-1" />
-                                      Generate
-                                    </>
-                                  )}
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </TabsContent>
-                )}
 
                 <TabsContent value="manual">
                   <Button type="button" variant="outline" onClick={addQuestion} className="w-full" data-testid="button-add-question">

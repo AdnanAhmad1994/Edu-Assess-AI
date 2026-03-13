@@ -56,6 +56,14 @@ export default function LecturesPage() {
 
   const { data: lectures, isLoading } = useQuery<Lecture[]>({
     queryKey: ["/api/lectures", selectedCourse],
+    queryFn: async () => {
+      const url = selectedCourse && selectedCourse !== "all"
+        ? `/api/lectures?courseId=${selectedCourse}`
+        : `/api/lectures`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch lectures");
+      return res.json();
+    },
   });
 
   const { data: courses } = useQuery<Course[]>({
@@ -136,7 +144,25 @@ export default function LecturesPage() {
     },
   });
 
+  const deleteLectureMutation = useMutation({
+    mutationFn: async (lectureId: string) => {
+      await apiRequest("DELETE", `/api/lectures/${lectureId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/lectures"] });
+      toast({ title: "Lecture deleted", description: "The lecture and its associated file have been removed." });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Delete failed", 
+        description: error.message || "Failed to delete lecture.",
+        variant: "destructive"
+      });
+    },
+  });
+
   const isInstructor = user?.role === "instructor" || user?.role === "admin";
+
 
   const filteredLectures = lectures?.filter((lecture) => {
     const matchesCourse = selectedCourse === "all" || lecture.courseId === selectedCourse;
@@ -312,12 +338,13 @@ export default function LecturesPage() {
                         size="icon"
                         onClick={() => {
                           const fileId = lecture.fileUrl?.split('/').pop();
-                          window.open(`/api/objects/${fileId}`, "_blank");
+                          window.open(`/api/objects/${fileId}?filename=${encodeURIComponent(lecture.title)}`, "_blank");
                         }}
                         title="Download"
                       >
                         <Download className="w-4 h-4" />
                       </Button>
+
                     )}
                     {isInstructor && (
                       <DropdownMenu>
@@ -349,6 +376,18 @@ export default function LecturesPage() {
                         <Sparkles className="w-4 h-4 mr-2" />
                         Generate Quiz
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => {
+                          if (confirm("Are you sure you want to delete this lecture? This will also delete the file from storage.")) {
+                            deleteLectureMutation.mutate(lecture.id);
+                          }
+                        }}
+                      >
+                        <Plus className="w-4 h-4 mr-2 rotate-45" />
+                        Delete Lecture
+                      </DropdownMenuItem>
+
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}

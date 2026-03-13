@@ -25,6 +25,9 @@ import crypto from "crypto";
 import { sendPasswordResetOTPEmail, sendUsernameReminderEmail, sendOTPVerificationEmail } from "./email";
 import { registerObjectStorageRoutes, ObjectStorageService } from "./replit_integrations/object_storage";
 import { generateWithProvider, testProviderKey, PROVIDER_CONFIGS } from "./aiProvider";
+import { extractTextFromBuffer } from "./lib/file-parser";
+import { driveClient } from "./replit_integrations/object_storage/objectStorage";
+
 
 declare module "express-session" {
   interface SessionData {
@@ -1071,6 +1074,7 @@ export async function registerRoutes(
   });
 
   // Lectures
+  /* Locked Lecture Feature
   app.get("/api/lectures", requireAuth, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
@@ -1092,7 +1096,9 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to fetch lectures" });
     }
   });
+  */
 
+  /* Locked Lecture Feature
   app.post("/api/lectures", requireInstructor, async (req, res) => {
     try {
       const data = insertLectureSchema.parse(req.body);
@@ -1103,12 +1109,84 @@ export async function registerRoutes(
       res.status(400).json({ error: "Failed to create lecture" });
     }
   });
+  */
 
+  /* Locked Lecture Feature
+  app.delete("/api/lectures/:id", requireInstructor, async (req, res) => {
+    try {
+      const lectureId = req.params.id as string;
+      const lecture = await storage.getLecture(lectureId);
+      
+      if (!lecture) return res.status(404).json({ error: "Lecture not found" });
+
+      // Owner/Admin check
+      const user = await storage.getUser(req.session.userId!);
+      const course = await storage.getCourse(lecture.courseId);
+      if (user?.role !== "admin" && course?.instructorId !== user?.id) {
+        return res.status(403).json({ error: "You do not have permission to delete this lecture" });
+      }
+
+      // 1. Delete associated file from storage if it exists
+      if (lecture.fileUrl) {
+        const fileId = lecture.fileUrl.split("/").pop();
+        if (fileId) {
+          try {
+            const objectStorageService = new ObjectStorageService();
+            await objectStorageService.deleteObject(fileId);
+          } catch (storageErr) {
+            console.error("Failed to delete associated file from storage:", storageErr);
+            // We continue anyway to clean up the DB
+          }
+        }
+      }
+
+      // 2. Delete the lecture from the database
+      await storage.deleteLecture(lectureId);
+      res.json({ success: true, message: "Lecture and associated file deleted successfully" });
+    } catch (error) {
+      console.error("Delete lecture error:", error);
+      res.status(500).json({ error: "Failed to delete lecture" });
+    }
+  });
+  */
+
+
+  /* Locked Lecture Feature
   app.post("/api/lectures/:id/generate-summary", requireInstructor, async (req, res) => {
     try {
       const lecture = await storage.getLecture(req.params.id as string);
       if (!lecture) {
         return res.status(404).json({ error: "Lecture not found" });
+      }
+
+      let content = lecture.description || "";
+      
+      // If there's a file but no description (or as extra context), try reading the file
+      if (lecture.fileUrl) {
+        const fileId = lecture.fileUrl.split("/").pop();
+        if (fileId) {
+          try {
+            const storageService = new ObjectStorageService();
+            const buffer = await storageService.getObjectBuffer(fileId);
+            if (buffer && driveClient) {
+              const metadata = await driveClient.files.get({
+                fileId,
+                fields: "mimeType",
+              });
+              const extractedText = await extractTextFromBuffer(buffer, metadata.data.mimeType || "");
+              if (extractedText) {
+                // If we have extracted text, prioritize it or combine it
+                content = extractedText.substring(0, 10000); // Limit to 10k chars for safety
+              }
+            }
+          } catch (storageErr) {
+            console.error("Failed to read file for summary:", storageErr);
+          }
+        }
+      }
+
+      if (!content || content.trim().length < 10) {
+         return res.status(400).json({ error: "Not enough content to generate a summary. Please provide a description or a valid document." });
       }
 
       const aiUser = await getAiUser(req.session.userId);
@@ -1121,7 +1199,7 @@ export async function registerRoutes(
 2. 5-7 key points as bullet points
 
 Lecture title: ${lecture.title}
-Content: ${lecture.description || "No content available"}
+Content: ${content}
 
 Respond in JSON format:
 {
@@ -1148,6 +1226,8 @@ Respond in JSON format:
       res.status(500).json({ error: "Failed to generate summary" });
     }
   });
+  */
+
 
   // GET student's own quiz submissions (for showing completion status on quiz listing)
   app.get("/api/my-quiz-submissions", requireAuth, async (req, res) => {
@@ -1758,14 +1838,36 @@ Respond in JSON format:
 
       const aiUser = await getAiUser(req.session.userId);
       const isImage = fileType?.startsWith("image/");
+      
+      let buffer: Buffer;
+      let finalMimeType = fileType || (isImage ? "image/jpeg" : "application/pdf");
 
-      // Fetch the file and encode as base64 data URI for multi-modal providers
-      const fetchUrl = fileUrl.startsWith("/") ? `${req.protocol}://${req.get("host")}${fileUrl}` : fileUrl;
-      const fileResponse = await fetch(fetchUrl);
-      const buffer = await fileResponse.arrayBuffer();
-      const base64 = Buffer.from(buffer).toString("base64");
-      const mimeType = fileType || (isImage ? "image/jpeg" : "application/pdf");
-      const dataUri = `data:${mimeType};base64,${base64}`;
+      // Use ObjectStorageService if it's a local/relative path
+      if (fileUrl.startsWith("/objects/")) {
+        const fileId = fileUrl.split("/").pop();
+        const storageService = new ObjectStorageService();
+        const storageBuffer = await storageService.getObjectBuffer(fileId || "");
+        if (!storageBuffer) throw new Error("File not found in storage");
+        buffer = storageBuffer;
+        
+        // Try to get actual mimeType from Drive if possible
+        if (driveClient && fileId) {
+          try {
+            const metadata = await driveClient.files.get({ fileId, fields: "mimeType" });
+            finalMimeType = metadata.data.mimeType || finalMimeType;
+          } catch (e) {}
+        }
+      } else {
+        const fetchUrl = fileUrl.startsWith("/") ? `${req.protocol}://${req.get("host")}${fileUrl}` : fileUrl;
+        const fileResponse = await fetch(fetchUrl);
+        const arrayBuffer = await fileResponse.arrayBuffer();
+        buffer = Buffer.from(arrayBuffer);
+      }
+
+      let extractedText = "";
+      if (!isImage) {
+        extractedText = await extractTextFromBuffer(buffer, finalMimeType);
+      }
 
       const promptText = isImage
         ? `Analyze this image and generate ${numQuestions} multiple choice quiz questions based on its content.
@@ -1785,10 +1887,12 @@ Respond in JSON format:
     }
   ]
 }`
-        : `Analyze this document (${fileName || "uploaded file"}) and generate ${numQuestions} multiple choice quiz questions based on its content.
-Extract key concepts, facts, and important details from the document.
+        : `Analyze this document content and generate ${numQuestions} multiple choice quiz questions.
 Each question must be a multiple choice question with exactly 4 options.
 Difficulty level: ${difficulty}
+
+Document content:
+${extractedText.substring(0, 15000)}
 
 Respond in JSON format:
 {
@@ -1811,7 +1915,7 @@ Respond in JSON format:
           role: "user",
           content: isImage
             ? [
-              { type: "image_url", image_url: { url: dataUri } },
+              { type: "image_url", image_url: { url: `data:${finalMimeType};base64,${buffer.toString("base64")}` } },
               { type: "text", text: promptText },
             ]
             : promptText,
@@ -1826,11 +1930,12 @@ Respond in JSON format:
       } else {
         res.status(500).json({ error: "Failed to parse AI response" });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Generate from file error:", error);
-      res.status(500).json({ error: "Failed to generate questions from file" });
+      res.status(500).json({ error: error.message || "Failed to generate questions from file" });
     }
   });
+
 
   // Proctoring
   app.post("/api/proctoring/violation", requireAuth, async (req, res) => {
@@ -2186,8 +2291,11 @@ Return ONLY a JSON array of violations found (empty array if none):
       const allQuizzes = quizzesByCourse.flat();
       const assignmentsByCourse = await Promise.all(allCourses.map(c => storage.getAssignments(c.id)));
       const allAssignments = assignmentsByCourse.flat();
+      /* Locked Lecture Feature
       const lecturesByCourse = await Promise.all(allCourses.map(c => storage.getLectures(c.id)));
       const allLectures = lecturesByCourse.flat();
+      */
+      const allLectures: any[] = [];
 
       // Fetch public quiz submission counts for context
       const publicSubCounts: Record<string, number> = {};
@@ -2221,7 +2329,6 @@ Return ONLY a JSON array of violations found (empty array if none):
 Courses (${allCourses.length}): ${ctxCourses.map(c => `"${c.name}" [code:${c.code}, id:${c.id}]`).join(", ") || "none"}${moreNote(allCourses, 8)}
 Quizzes (${allQuizzes.length}): ${ctxQuizzes.map(q => `"${q.title}" [course:${allCourses.find(c => c.id === q.courseId)?.name || "?"}, status:${q.status}, id:${q.id}]`).join(", ") || "none"}${moreNote(allQuizzes, 8)}
 Assignments (${allAssignments.length}): ${ctxAssignments.map(a => `"${a.title}" [course:${allCourses.find(c => c.id === a.courseId)?.name || "?"}, status:${a.status}, id:${a.id}]`).join(", ") || "none"}${moreNote(allAssignments, 8)}
-Lectures (${allLectures.length}): ${ctxLectures.map(l => `"${l.title}" [course:${allCourses.find(c => c.id === l.courseId)?.name || "?"}, id:${l.id}]`).join(", ") || "none"}${moreNote(allLectures, 8)}
 Students (${allStudents.length}): ${ctxStudents.map(s => `"${s.name}" [email:${s.email}, id:${s.id}]`).join(", ") || "none"}${moreNote(allStudents, 8)}
 Current user: ${user?.name} (${user?.role})
 === END CONTEXT ===
@@ -2262,7 +2369,6 @@ AI FEATURES (available now):
   - Quiz question generation from text or uploaded files (PDF, images)
   - Assignment AI grading with rubric
   - AI content detection (human vs AI-written)
-  - Lecture summarization with key points
   - Chatbot co-pilot (this!) with full platform control
   - Proctoring frame analysis (webcam screenshots → violation detection)
 
@@ -2280,13 +2386,11 @@ AVAILABLE INTENTS (use EXACTLY these strings):
     "create_course" — params: name, code, semester, description
     "create_quiz" — params: title, topic, courseName, numQuestions (default 5), difficulty (easy/medium/hard/mixed), generateQuestions (bool), timeLimitMinutes, passingScore
     "create_assignment" — params: title, courseName, description, instructions, dueDate (ISO string), points, rubric (array of {criterion,maxPoints,description})
-    "create_lecture" — params: title, courseName, unit, description, videoUrl
 
   Content Updates:
     "update_quiz" — params: quizName (or quizId), title, description, timeLimitMinutes, passingScore, status, proctored (bool)
     "update_course" — params: courseName (or courseId), name, description, semester
     "update_assignment" — params: assignmentName (or assignmentId), title, description, dueDate, points, allowLateSubmission (bool), latePenaltyPercent
-    "update_lecture" — params: lectureName (or lectureId), title, description, unit, videoUrl
 
   Publishing & Status:
     "publish_quiz" — params: quizName (or "all" to publish all drafts)
@@ -2298,7 +2402,6 @@ AVAILABLE INTENTS (use EXACTLY these strings):
     "delete_quiz" — params: quizName
     "delete_course" — params: courseName
     "delete_assignment" — params: assignmentName
-    "delete_lecture" — params: lectureName
 
   Listing & Querying:
     "list_quizzes" — params: courseName (optional), status (optional: draft/published/archived)

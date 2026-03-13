@@ -478,9 +478,6 @@ function StudentDashboard() {
     queryKey: ["/api/student/assignments/pending"],
   });
 
-  const { data: lectures } = useQuery<Lecture[]>({
-    queryKey: ["/api/lectures"],
-  });
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -714,59 +711,6 @@ function StudentDashboard() {
           </CardContent>
         </Card>
 
-        {/* Lecture Notes Section */}
-        <Card className="shadow-sm border-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-blue-500" />
-              Lecture Notes
-            </CardTitle>
-            <CardDescription>Download course materials and summaries</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {lectures && lectures.length > 0 ? (
-              <div className="space-y-3">
-                {lectures.map((lecture) => (
-                  <div
-                    key={lecture.id}
-                    className="flex items-center justify-between p-4 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-all group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-sm truncate">{lecture.title}</p>
-                        <p className="text-[10px] text-muted-foreground line-clamp-1">
-                          {lecture.unit || "Course Material"}
-                        </p>
-                      </div>
-                    </div>
-                    {lecture.fileUrl && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => {
-                          const fileId = lecture.fileUrl?.split('/').pop();
-                          window.open(`/api/objects/${fileId}`, "_blank");
-                        }}
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                icon={BookOpen}
-                title="No lecture notes"
-                description="Your instructors haven't uploaded any notes yet."
-              />
-            )}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

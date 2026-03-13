@@ -207,11 +207,11 @@ function Router() {
           <ProtectedRoute component={StudentProfilePage} />
         </AuthenticatedLayout>
       </Route>
-      <Route path="/lectures">
+{/* <Route path="/lectures">
         <AuthenticatedLayout>
           <ProtectedRoute component={LecturesPage} />
         </AuthenticatedLayout>
-      </Route>
+      </Route> */}
       <Route path="/users">
         <AuthenticatedLayout>
           <ProtectedRoute component={UsersPage} />

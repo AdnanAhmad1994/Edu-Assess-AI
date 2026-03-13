@@ -150,7 +150,6 @@ export default function Chatbot() {
       queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
       queryClient.invalidateQueries({ queryKey: ["/api/quizzes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/lectures"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/chat/history"] });
 
@@ -304,14 +303,6 @@ export default function Chatbot() {
           </div>
         )}
 
-        {data.lecture && (
-          <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <Badge variant="secondary" className="text-xs">
-              <CheckCircle className="h-3 w-3 mr-1" />
-              {data.lecture.title}
-            </Badge>
-          </div>
-        )}
 
         {data.stats && (
           <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
@@ -364,18 +355,6 @@ export default function Chatbot() {
           </div>
         )}
 
-        {data.lectures && data.lectures.length > 0 && (
-          <div className="mt-2 space-y-1">
-            {data.lectures.slice(0, 5).map((l: any) => (
-              <div key={l.id} className="text-xs bg-background/50 p-2 rounded">
-                <span className="font-medium">{l.title}</span>
-              </div>
-            ))}
-            {data.lectures.length > 5 && (
-              <p className="text-xs text-muted-foreground">+{data.lectures.length - 5} more...</p>
-            )}
-          </div>
-        )}
 
         {data.enrollments && data.enrollments.length > 0 && (
           <div className="mt-2 space-y-1">

@@ -223,7 +223,7 @@ export default function CoursesPage() {
               <DialogHeader>
                 <DialogTitle>Create New Course</DialogTitle>
                 <DialogDescription>
-                  Add a new course to start managing lectures, quizzes, and assignments.
+                  Add a new course to start managing quizzes and assignments.
                 </DialogDescription>
               </DialogHeader>
               <Form {...form}>
@@ -379,10 +379,6 @@ export default function CoursesPage() {
                 </p>
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1">
-                    <FolderOpen className="w-4 h-4" />
-                    <span>Lectures</span>
-                  </div>
-                  <div className="flex items-center gap-1">
                     <FileQuestion className="w-4 h-4" />
                     <span>Quizzes</span>
                   </div>
@@ -404,7 +400,7 @@ export default function CoursesPage() {
             <h3 className="text-lg font-medium">No courses yet</h3>
             <p className="text-sm text-muted-foreground mt-1 text-center max-w-sm">
               {isInstructor
-                ? "Create your first course to start adding lectures, quizzes, and assignments."
+                ? "Create your first course to start adding quizzes and assignments."
                 : "You haven't enrolled in any courses yet."}
             </p>
             {isInstructor && (
@@ -427,7 +423,7 @@ export default function CoursesPage() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete <strong>"{deleteTarget?.name}"</strong> and all its quizzes,
-              assignments, lectures, and enrollments. This action cannot be undone.
+              assignments, and enrollments. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

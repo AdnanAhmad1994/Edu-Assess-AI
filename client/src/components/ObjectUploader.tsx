@@ -104,11 +104,26 @@ export function ObjectUploader({
       onComplete?.(result);
     };
 
-    const handleSuccess = (file: any, response: any) => {
+    const handleSuccess = async (file: any, response: any) => {
       console.log("Uppy upload-success event:", file.id, response);
-      // Ensure the path is in the file meta even before 'complete'
-      if (!file.meta.objectPath && objectPaths.current[file.id]) {
-        uppy.setFileMeta(file.id, { objectPath: objectPaths.current[file.id] });
+      
+      // Try to read the Drive File ID from the server's response body
+      try {
+        const responseBody = response.body;
+        if (responseBody && responseBody.objectPath) {
+          // Server returned Drive File ID reference - use it
+          const driveObjectPath = responseBody.objectPath;
+          objectPaths.current[file.id] = driveObjectPath;
+          uppy.setFileMeta(file.id, { objectPath: driveObjectPath });
+          console.log("Updated objectPath from server response:", driveObjectPath);
+        } else if (!file.meta.objectPath && objectPaths.current[file.id]) {
+          uppy.setFileMeta(file.id, { objectPath: objectPaths.current[file.id] });
+        }
+      } catch (e) {
+        // Fallback to original path if response parsing fails
+        if (!file.meta.objectPath && objectPaths.current[file.id]) {
+          uppy.setFileMeta(file.id, { objectPath: objectPaths.current[file.id] });
+        }
       }
     };
 

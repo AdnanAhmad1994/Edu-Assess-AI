@@ -36,30 +36,30 @@ const instructorMenuItems = [
   { title: "Courses", url: "/courses", icon: BookOpen },
   { title: "Quizzes", url: "/quizzes", icon: FileQuestion },
   { title: "Assignments", url: "/assignments", icon: ClipboardList },
-  { title: "Lectures", url: "/lectures", icon: FolderOpen },
   { title: "Gradebook", url: "/gradebook", icon: BookMarked },
   { title: "Students", url: "/users", icon: Users },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
+
 const studentMenuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "My Courses", url: "/courses", icon: BookOpen },
-  { title: "Lecture Notes", url: "/lectures", icon: FolderOpen },
   { title: "Quizzes", url: "/quizzes", icon: FileQuestion },
   { title: "Assignments", url: "/assignments", icon: ClipboardList },
   { title: "My Profile", url: "/my-profile", icon: UserCircle },
 ];
 
+
 const adminMenuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Users", url: "/users", icon: Users },
   { title: "Courses", url: "/courses", icon: BookOpen },
-  { title: "Lectures", url: "/lectures", icon: FolderOpen },
   { title: "Gradebook", url: "/gradebook", icon: BookMarked },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
+
 
 export function AppSidebar() {
   const [location, setLocation] = useLocation();

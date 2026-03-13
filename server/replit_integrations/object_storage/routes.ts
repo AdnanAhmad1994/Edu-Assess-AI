@@ -62,7 +62,7 @@ export function registerObjectStorageRoutes(app: Express): void {
     }
   });
 
-  // Local upload handler for PUT requests
+  // Local upload handler for PUT requests - returns Google Drive File ID in response
   app.put("/api/uploads/direct-upload/:uuid", express.raw({ type: '*/*', limit: '100mb' }), async (req, res) => {
     try {
       const { uuid } = req.params;
@@ -74,26 +74,31 @@ export function registerObjectStorageRoutes(app: Express): void {
       }
 
       console.log(`Received local upload for ${uuid}, size: ${buffer.length} bytes, type: ${req.headers['content-type']}`);
-      await objectStorageService.saveLocalObject(uuid, buffer, req.headers['content-type'] as string);
-      res.setHeader("Location", `/api/objects/${uuid}`);
-      res.status(200).send();
+      const driveFileId = await objectStorageService.saveLocalObject(uuid, buffer, req.headers['content-type'] as string);
+      
+      // Return the Drive File ID so the client can reference it
+      const objectPath = `/objects/${driveFileId}`;
+      res.setHeader("Location", `/api/objects/${driveFileId}`);
+      res.setHeader("X-Drive-File-Id", driveFileId);
+      res.status(200).json({ fileId: driveFileId, objectPath });
     } catch (error) {
       console.error("Local upload error:", error);
-      res.status(500).json({ error: "Failed to upload file locally" });
+      res.status(500).json({ error: "Failed to upload file" });
     }
   });
 
   /**
    * Serve uploaded objects.
    *
-   * GET /api/objects/:objectId
+   * GET /api/objects/:objectId?filename=name.pdf
    */
   app.get(/^\/api\/objects\/(.+)$/, async (req, res) => {
     try {
       const objectId = req.params[0];
+      const filename = req.query.filename as string;
       const objectPath = `/objects/${objectId}`;
       const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
-      await objectStorageService.downloadObject(objectFile, res);
+      await objectStorageService.downloadObject(objectFile, res, filename);
     } catch (error) {
       console.error("Error serving object:", error);
       if (error instanceof ObjectNotFoundError) {
@@ -102,5 +107,22 @@ export function registerObjectStorageRoutes(app: Express): void {
       return res.status(500).json({ error: "Failed to serve object" });
     }
   });
+
+  /**
+   * Delete uploaded objects.
+   *
+   * DELETE /api/objects/:objectId
+   */
+  app.delete(/^\/api\/objects\/(.+)$/, async (req, res) => {
+    try {
+      const objectId = req.params[0];
+      await objectStorageService.deleteObject(objectId);
+      res.json({ success: true, message: "Object deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting object:", error);
+      res.status(500).json({ error: "Failed to delete object" });
+    }
+  });
+
 }
 
